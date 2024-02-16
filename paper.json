@@ -1,0 +1,118 @@
+{
+    "papers": [
+        {
+            "id": "0",
+            "title": "Understanding Graph Neural Networks",
+            "abstract": "This paper introduces the concept of graph neural networks.",
+            "year": 2020,
+            "authors": [
+                "Author A"
+            ]
+        },
+        {
+            "id": "1",
+            "title": "Hypergraph Neural Networks for Multi-dimensional Data",
+            "abstract": "We extend GNNs to hypergraphs for better data representation.",
+            "year": 2021,
+            "authors": [
+                "Author B",
+                "Author C"
+            ]
+        },
+        {
+            "id": "2",
+            "title": "Graph Convolutional Networks: An Overview",
+            "abstract": "An overview of GCN models, their applications, and efficiency.",
+            "year": 2019,
+            "authors": [
+                "Author D"
+            ]
+        },
+        {
+            "id": "3",
+            "title": "3Graph Convolutional Networks: An Overview",
+            "abstract": "An overview of GCN models, their applications, and efficiency.",
+            "year": 2001,
+            "authors": [
+                "Author 3D"
+            ]
+        },
+        {
+            "id": "4",
+            "title": "4 Graph Convolutional Networks: An Overview",
+            "abstract": "An overview of GCN models, their applications, and efficiency.",
+            "year": 2019,
+            "authors": [
+                "Author 4D"
+            ]
+        },
+        {
+            "id": "5",
+            "title": "5 An Overview",
+            "abstract": "efficiency.",
+            "year": 1998,
+            "authors": [
+                "Author 5D"
+            ]
+        },
+        {
+            "id": "6",
+            "title": "6 An Overview",
+            "abstract": "efficiency.",
+            "year": 1996,
+            "authors": [
+                "Author 6D"
+            ]
+        },
+        {
+            "id": "7",
+            "title": "7 An Overview",
+            "abstract": "efficiency.",
+            "year": 1991,
+            "authors": [
+                "Author 7D"
+            ]
+        }
+    ],
+    "edges": [
+        {
+            "source": "0",
+            "target": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7"
+            ]
+        },
+        {
+            "source": "1",
+            "target": [
+                "2"
+            ]
+        },
+        {
+            "source": "2",
+            "target": [
+                "4",
+                "5"
+            ]
+        },
+        {
+            "source": "3",
+            "target": [
+                "1",
+                "5"
+            ]
+        },
+        {
+            "source": "5",
+            "target": [
+                "1",
+                "5"
+            ]
+        }
+    ]
+}
