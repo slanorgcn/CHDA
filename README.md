@@ -6,7 +6,7 @@
 
 ## 快速开始
 
-`pip install dgl torch` 或参考：[text](https://www.dgl.ai/pages/start.html)
+`pip install dgl torch` 或参考：[https://www.dgl.ai/pages/start.html](https://www.dgl.ai/pages/start.html)
 
 `pip install gensim`
 
