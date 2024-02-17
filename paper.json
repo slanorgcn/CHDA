@@ -1,7 +1,7 @@
 {
     "papers": [
         {
-            "id": "0",
+            "id": "uuid-0",
             "title": "Understanding Graph Neural Networks",
             "abstract": "This paper introduces the concept of graph neural networks.",
             "year": 2020,
@@ -10,7 +10,7 @@
             ]
         },
         {
-            "id": "1",
+            "id": "uuid-1",
             "title": "Hypergraph Neural Networks for Multi-dimensional Data",
             "abstract": "We extend GNNs to hypergraphs for better data representation.",
             "year": 2021,
@@ -20,7 +20,7 @@
             ]
         },
         {
-            "id": "2",
+            "id": "uuid-2",
             "title": "Graph Convolutional Networks: An Overview",
             "abstract": "An overview of GCN models, their applications, and efficiency.",
             "year": 2019,
@@ -29,7 +29,7 @@
             ]
         },
         {
-            "id": "3",
+            "id": "uuid-3",
             "title": "3Graph Convolutional Networks: An Overview",
             "abstract": "An overview of GCN models, their applications, and efficiency.",
             "year": 2001,
@@ -38,7 +38,7 @@
             ]
         },
         {
-            "id": "4",
+            "id": "uuid-4",
             "title": "4 Graph Convolutional Networks: An Overview",
             "abstract": "An overview of GCN models, their applications, and efficiency.",
             "year": 2019,
@@ -47,7 +47,7 @@
             ]
         },
         {
-            "id": "5",
+            "id": "uuid-5",
             "title": "5 An Overview",
             "abstract": "efficiency.",
             "year": 1998,
@@ -56,7 +56,7 @@
             ]
         },
         {
-            "id": "6",
+            "id": "uuid-6",
             "title": "6 An Overview",
             "abstract": "efficiency.",
             "year": 1996,
@@ -65,7 +65,7 @@
             ]
         },
         {
-            "id": "7",
+            "id": "uuid-7",
             "title": "7 An Overview",
             "abstract": "efficiency.",
             "year": 1991,
@@ -76,41 +76,41 @@
     ],
     "edges": [
         {
-            "source": "0",
+            "source": "uuid-0",
             "target": [
-                "1",
-                "2",
-                "3",
-                "4",
-                "6",
-                "7"
+                "uuid-1",
+                "uuid-2",
+                "uuid-3",
+                "uuid-4",
+                "uuid-6",
+                "uuid-7"
             ]
         },
         {
-            "source": "1",
+            "source": "uuid-1",
             "target": [
-                "2"
+                "uuid-2"
             ]
         },
         {
-            "source": "2",
+            "source": "uuid-2",
             "target": [
-                "4",
-                "7"
+                "uuid-4",
+                "uuid-7"
             ]
         },
         {
-            "source": "3",
+            "source": "uuid-3",
             "target": [
-                "1",
-                "7"
+                "uuid-1",
+                "uuid-7"
             ]
         },
         {
-            "source": "5",
+            "source": "uuid-5",
             "target": [
-                "1",
-                "7"
+                "uuid-1",
+                "uuid-7"
             ]
         }
     ]

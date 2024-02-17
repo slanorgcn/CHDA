@@ -6,7 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from dgl.nn import GraphConv
 from sklearn.model_selection import train_test_split
-from gensim.models import Word2Vec
+import fasttext.util
+from sklearn.preprocessing import OneHotEncoder
 
 
 class GNNModel(nn.Module):
@@ -33,30 +34,56 @@ class GNNModel(nn.Module):
         return torch.sigmoid(self.predict(edge_h))
     
 def load_data(filename):
+    # 加载预训练的fastText模型
+    fasttext.util.download_model('zh', if_exists='ignore')  # 'zh'代表中文
+    ft = fasttext.load_model('cc.zh.300.bin')
+    
     with open(filename, 'r') as file:
         data = json.load(file)
     
-    edges_src = [int(edge['source']) for edge in data['edges'] for target in edge['target']]
-    edges_dst = [int(target) for edge in data['edges'] for target in edge['target']]
+    # 创建从UUID到整数索引的映射
+    uuid_to_index = {paper['id']: idx for idx, paper in enumerate(data['papers'])}
+    
+    # 使用映射转换edges中的UUID到整数索引
+    edges_src = [uuid_to_index[edge['source']] for edge in data['edges'] for target in edge['target']]
+    edges_dst = [uuid_to_index[target] for edge in data['edges'] for target in edge['target']]
+    
+    # print('uuid_to_index')
+    # print(uuid_to_index)
+    # print('edges_src')
+    # print(edges_src)
+    # print('edges_dst')
+    # print(edges_dst)
     
     num_papers = len(data['papers'])
     g = dgl.graph((edges_src, edges_dst))
     g.add_nodes(num_papers - g.number_of_nodes())  # 确保图中有正确数量的节点(补全无边节点)
     g = dgl.add_self_loop(g)
     
+    # 处理年份特征
     years = np.array([[paper['year']] for paper in data['papers']])
-    print('years')
-    print(years)
-    features = torch.FloatTensor(years)
-    # todo 增加其他向量特征
-    # features = torch.cat([torch.FloatTensor(years), title_embeddings, abstract_embeddings, author_features], dim=1)
-    # print('features')
-    # print(features)
-    print('years.shape')
-    print(years.shape)
-
+    years = torch.FloatTensor(years)
     
-    return g, features, data['papers'], data['edges']
+    # 生成标题和摘要的词向量
+    title_embeddings = np.array([ft.get_sentence_vector(paper['title']) for paper in data['papers']])
+    abstract_embeddings = np.array([ft.get_sentence_vector(paper['abstract']) for paper in data['papers']])
+    
+    # 处理作者信息（简单示例：使用OneHotEncoder）
+    authors_list = [",".join(paper['authors']) for paper in data['papers']]  # 将作者列表转换为字符串
+    encoder = OneHotEncoder(sparse=False)
+    author_features = encoder.fit_transform(np.array(authors_list).reshape(-1, 1))
+    
+    # 拼接所有特征
+    features = np.concatenate([years, title_embeddings, abstract_embeddings, author_features], axis=1)
+    features = torch.FloatTensor(features)
+    
+    # print('title_embeddings')
+    # print(title_embeddings)
+    
+    # print('author_features')
+    # print(author_features)
+    
+    return g, features, data['papers'], data['edges'], uuid_to_index
 
 def construct_negative_edges(g, num_neg_samples):
     import random
@@ -93,7 +120,7 @@ def recommend_papers(model, g, features, paper_id, top_k=10):
     return recommended_ids
 
 def main():
-    g, features, papers, edges = load_data('paper.json')
+    g, features, papers, edges, uuid_to_index = load_data('paper.json')
     
     # print('g.number_of_nodes()')  # 图中节点数量
     # print(g.number_of_nodes())  # 图中节点数量
@@ -106,24 +133,22 @@ def main():
     # print(papers)
     # print(edges)
     
-    # 构造正样本边
+    # 构造正样本边，使用uuid_to_index映射
     pos_edges = []
     for edge in edges:
-        src = int(edge['source'])
-        targets = edge['target']
+        src = uuid_to_index[edge['source']]
+        targets = [uuid_to_index[t] for t in edge['target']]
         for dst in targets:
-            pos_edges.append((src, int(dst)))
+            pos_edges.append((src, dst))
+    pos_edges = torch.tensor(pos_edges).t()
 
-    pos_edges = torch.tensor(pos_edges).t()
-    
-    pos_edges = torch.tensor(pos_edges).t()
     # print(pos_edges.size())  # 检查尺寸是否正确
     neg_edges = construct_negative_edges(g, len(pos_edges))
     
-    print('pos_edges')
-    print(pos_edges)
-    print('neg_edges')
-    print(neg_edges)
+    # print('pos_edges')
+    # print(pos_edges)
+    # print('neg_edges')
+    # print(neg_edges)
     
     for epoch in range(1000):
         model.train()
@@ -148,11 +173,20 @@ def main():
         optimizer.step()
         print(f'Epoch {epoch+1}, Loss: {loss.item()}')
 
-    # 从外部获取paper_id，这里仅作演示，实际使用时应由用户输入或其他方式获取
-    input_paper_id = int(input("请输入论文ID："))
+    # 从外部获取UUID形式的paper_id
+    input_uuid = input("请输入论文UUID：")
+    if input_uuid in uuid_to_index:
+        paper_index = uuid_to_index[input_uuid]
+        recommended_ids = recommend_papers(model, g, features, paper_index, top_k=10)
+        
+        # 将推荐的索引转换回UUID
+        index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}
+        recommended_uuids = [index_to_uuid[idx] for idx in recommended_ids]
+        
+        print("为论文UUID {} 推荐的相关论文UUID列表:".format(input_uuid), recommended_uuids)
+    else:
+        print("输入的UUID未找到对应的论文。")
 
-    recommended_ids = recommend_papers(model, g, features, paper_id=input_paper_id, top_k=10)
-    print("为论文ID {} 推荐的相关论文ID列表:".format(input_paper_id), recommended_ids)
 
 if __name__ == '__main__':
     main()
