@@ -6,23 +6,24 @@
 
 ## 快速开始
 
-`pip install dgl torch` 或参考：[https://www.dgl.ai/pages/start.html](https://www.dgl.ai/pages/start.html)
+`pip install dgl torch gensim fasttext`
 
-`pip install gensim fasttext`
+框架参考：[https://www.dgl.ai/pages/start.html](https://www.dgl.ai/pages/start.html)
 
 ## 数据集
 
-自行导出到 `paper.json`，目前提供一个简单的数据集
+自行导出到 `paper.json`，目前提供一个简单的历史类文献引用的数据集
 
 ## 主函数
 
-目前仅提供了一个非常基础的文本特征处理方式（简单的词袋模型），在实际应用中，您可能需要使用更高级的文本表示方法，如 TF-IDF、Word2Vec 或 BERT 等。
-此外，超边到图的转换过程也需要根据您具体的数据结构和需求来设计。
+论文特征中，目前提取了：标题+发表年份+期刊名+作者名+摘要。目前仅提供了一个非常基础的文本特征处理方式（`fasttext`）与热编码(`one-hot`)，在实际应用中，您可能需要使用更高级的文本表示方法，如 TF-IDF、Word2Vec 或 BERT 等。
+
+此外，超边到图的转换过程也需要根据您具体的数据结构和需求来设计。目前直接做了二部图，将超图转为了标准图来做的（这样也解决了引用方向的问题）相当于降维再跑 GNN 里的 GraphConv。如：一篇文章引用了若干其他文献，则这边文章为单个文章节点，引用的文献节点组用一个额外的独立节点作为抽超边，然后一头被连接这篇文章，一头连接这篇文章所引用的文献组。表示为：文章（一节点） -> 超边（一节点） -> 文献组（若干节点）
 
 ## 训练与验证
 
 ```python
-WIP
+python train_dgl.py
 ```
 
 ## 小应用
