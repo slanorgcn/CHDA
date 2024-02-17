@@ -61,28 +61,23 @@ def load_data(filename):
 def construct_negative_edges(g, num_neg_samples):
     import random
     
-    # 获取所有可能的节点对作为候选
     all_nodes = list(range(g.number_of_nodes()))
     neg_edges = []
     tried_pairs = set()
+    
     while len(neg_edges) < num_neg_samples:
-        # 随机选择两个不同的节点
         u = random.choice(all_nodes)
         v = random.choice(all_nodes)
-        if u == v or (u, v) in tried_pairs or (v, u) in tried_pairs:
-            continue  # 如果选择了相同的节点或已经尝试过这对节点，则跳过
+        if u == v or (u, v) in tried_pairs:
+            continue
         
         tried_pairs.add((u, v))
-        tried_pairs.add((v, u))  # 注意添加两个方向，确保不重复选择
+        tried_pairs.add((v, u))
         
-        # 检查这对节点是否已经连接
         if not g.has_edges_between(u, v):
-            neg_edges.append((u, v))
-            if len(neg_edges) % 100 == 0:
-                print(f"Generated {len(neg_edges)} negative edges so far...")
+            neg_edges.append([u, v])
     
-    # 转换为Tensor
-    neg_edges = torch.tensor(neg_edges).t()  # 转置以匹配DGL的边索引格式
+    neg_edges = torch.tensor(neg_edges)
     return neg_edges
 
 
@@ -100,10 +95,10 @@ def recommend_papers(model, g, features, paper_id, top_k=10):
 def main():
     g, features, papers, edges = load_data('paper.json')
     
-    print('g.number_of_nodes()')  # 图中节点数量
-    print(g.number_of_nodes())  # 图中节点数量
-    print('features.shape[0]')  # 特征张量中的样本数（节点数）
-    print(features.shape[0])  # 特征张量中的样本数（节点数）
+    # print('g.number_of_nodes()')  # 图中节点数量
+    # print(g.number_of_nodes())  # 图中节点数量
+    # print('features.shape[0]')  # 特征张量中的样本数（节点数）
+    # print(features.shape[0])  # 特征张量中的样本数（节点数）
 
     model = GNNModel(in_feats=features.shape[1], hidden_feats=16)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
@@ -125,8 +120,10 @@ def main():
     # print(pos_edges.size())  # 检查尺寸是否正确
     neg_edges = construct_negative_edges(g, len(pos_edges))
     
-    # print(pos_edges)
-    # print(neg_edges)
+    print('pos_edges')
+    print(pos_edges)
+    print('neg_edges')
+    print(neg_edges)
     
     for epoch in range(1000):
         model.train()
