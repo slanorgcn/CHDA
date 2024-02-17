@@ -6,8 +6,8 @@
 
 ## 快速开始
 
-```pythonpip install dgl torch gensim fasttext
-
+```python
+pip install dgl torch gensim fasttext
 ```
 
 框架参考：[https://www.dgl.ai/pages/start.html](https://www.dgl.ai/pages/start.html)
