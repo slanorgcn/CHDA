@@ -1,37 +1,22 @@
+import os
 import json
 import torch
 import dgl
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from dgl.nn import GraphConv
-from sklearn.model_selection import train_test_split
+import random
 import fasttext.util
+
+from dgl.nn import GraphConv
+from dgl.data.utils import save_graphs, load_graphs
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score, accuracy_score
+from torch.utils.data import DataLoader, TensorDataset
 
-
-class GNNModel(nn.Module):
-    def __init__(self, in_feats, hidden_feats):
-        super(GNNModel, self).__init__()
-        self.conv1 = GraphConv(in_feats, hidden_feats)
-        self.conv2 = GraphConv(hidden_feats, hidden_feats)
-        # 添加一个输出层，用于链接预测
-        self.predict = nn.Linear(hidden_feats * 2, 1)
-    
-    def forward(self, g, inputs):
-
-        # print(g)
-        # print(inputs)
-        
-        h = self.conv1(g, inputs)
-        h = F.relu(h)
-        h = self.conv2(g, h)
-        return h
-
-    def predict_links(self, h, edges):
-        # 用于链接预测的辅助函数，edges为节点对的索引
-        edge_h = torch.cat((h[edges[0]], h[edges[1]]), dim=1)
-        return torch.sigmoid(self.predict(edge_h))
+from model import GNNModel
     
 def load_data(filename):
     # 加载预训练的fastText模型
@@ -60,22 +45,55 @@ def load_data(filename):
     g.add_nodes(num_papers - g.number_of_nodes())  # 确保图中有正确数量的节点(补全无边节点)
     g = dgl.add_self_loop(g)
     
+    # 保存一份DGL的二进制格式用于预测脚本
+    save_graphs('graph_data.bin', [g])
+    
     # 处理年份特征
     years = np.array([[paper['year']] for paper in data['papers']])
+    
+    # 将字符串类型转换为浮点数
+    years = years.astype(np.float32)
+
+    # 然后转换为torch.FloatTensor
     years = torch.FloatTensor(years)
     
-    # 生成标题和摘要的词向量
+    # 生成标题和摘要和期刊的词向量
     title_embeddings = np.array([ft.get_sentence_vector(paper['title']) for paper in data['papers']])
-    abstract_embeddings = np.array([ft.get_sentence_vector(paper['abstract']) for paper in data['papers']])
+    abstract_embeddings = np.array([ft.get_sentence_vector(paper['abstract'].replace('\n', '')) for paper in data['papers']])
+    journal_embeddings = np.array([ft.get_sentence_vector(paper['journal']) for paper in data['papers']])
     
     # 处理作者信息（简单示例：使用OneHotEncoder）
     authors_list = [",".join(paper['authors']) for paper in data['papers']]  # 将作者列表转换为字符串
     encoder = OneHotEncoder(sparse=False)
     author_features = encoder.fit_transform(np.array(authors_list).reshape(-1, 1))
     
+    # 实例化归一化工具
+    scaler = StandardScaler()    
+    
+    # 对年份特征进行归一化
+    years_scaled = scaler.fit_transform(years)
+
+    # 对嵌入向量进行归一化
+    title_embeddings_scaled = scaler.fit_transform(title_embeddings)
+    abstract_embeddings_scaled = scaler.fit_transform(abstract_embeddings)
+    journal_embeddings_scaled = scaler.fit_transform(journal_embeddings)
+
+    # 注意：作者特征(author_features)通常不需要归一化，因为它是独热编码的    
+    
     # 拼接所有特征
-    features = np.concatenate([years, title_embeddings, abstract_embeddings, author_features], axis=1)
-    features = torch.FloatTensor(features)
+    # features = np.concatenate([years, title_embeddings, abstract_embeddings, journal_embeddings, author_features], axis=1)
+    # features = torch.FloatTensor(features) 
+    
+    # 拼接所有归一化后的特征
+    features_scaled = np.concatenate([years_scaled, title_embeddings_scaled, abstract_embeddings_scaled, journal_embeddings_scaled, author_features], axis=1)
+    features_scaled = torch.FloatTensor(features_scaled)
+    
+    # 保存特征数据为 .pt 文件用于预测脚本
+    torch.save(features_scaled, 'your_features.pt')
+    
+    # 保存从UUID到图节点索引的映射数据为 .pt 文件用于预测脚本
+    uuid_to_index = {paper['id']: idx for idx, paper in enumerate(data['papers'])}
+    torch.save(uuid_to_index, 'uuid_to_index.pt')
     
     # print('title_embeddings')
     # print(title_embeddings)
@@ -83,16 +101,24 @@ def load_data(filename):
     # print('author_features')
     # print(author_features)
     
-    return g, features, data['papers'], data['edges'], uuid_to_index
+    return g, features_scaled, data['papers'], data['edges'], uuid_to_index
 
-def construct_negative_edges(g, num_neg_samples):
-    import random
-    
+
+def construct_positive_negative_edges(g, edges, uuid_to_index, test_size=0.2, val_size=0.1):
+    # 构造正样本边，使用uuid_to_index映射
+    pos_edges = []
+    for edge in edges:
+        src = uuid_to_index[edge['source']]
+        targets = [uuid_to_index[t] for t in edge['target']]
+        for dst in targets:
+            pos_edges.append((src, dst))
+
+    # 构造负样本
     all_nodes = list(range(g.number_of_nodes()))
     neg_edges = []
     tried_pairs = set()
     
-    while len(neg_edges) < num_neg_samples:
+    while len(neg_edges) < len(pos_edges):
         u = random.choice(all_nodes)
         v = random.choice(all_nodes)
         if u == v or (u, v) in tried_pairs:
@@ -101,12 +127,135 @@ def construct_negative_edges(g, num_neg_samples):
         tried_pairs.add((u, v))
         tried_pairs.add((v, u))
         
-        if not g.has_edges_between(u, v):
-            neg_edges.append([u, v])
-    
-    neg_edges = torch.tensor(neg_edges)
-    return neg_edges
+        if not g.has_edges_between([u], [v]).bool().item():
+            neg_edges.append((u, v))
 
+    # print('pos_edges@construct_positive_negative_edges')
+    # print(pos_edges[:10])
+    # print('neg_edges@construct_positive_negative_edges')
+    # print(neg_edges[:10])
+
+    # 分割数据集
+    pos_train, pos_temp = train_test_split(pos_edges, test_size=test_size + val_size, random_state=42)
+    pos_val, pos_test = train_test_split(pos_temp, test_size=test_size / (test_size + val_size), random_state=42)
+
+    neg_train, neg_temp = train_test_split(neg_edges, test_size=test_size + val_size, random_state=42)
+    neg_val, neg_test = train_test_split(neg_temp, test_size=test_size / (test_size + val_size), random_state=42)
+
+    # 转换为Tensor
+    pos_train_tensor = torch.tensor(pos_train, dtype=torch.long)
+    pos_val_tensor = torch.tensor(pos_val, dtype=torch.long)
+    pos_test_tensor = torch.tensor(pos_test, dtype=torch.long)
+    neg_train_tensor = torch.tensor(neg_train, dtype=torch.long)
+    neg_val_tensor = torch.tensor(neg_val, dtype=torch.long)
+    neg_test_tensor = torch.tensor(neg_test, dtype=torch.long)
+
+    return pos_train_tensor, pos_val_tensor, pos_test_tensor, neg_train_tensor, neg_val_tensor, neg_test_tensor
+
+def prepare_dataloader(pos_edges, neg_edges, batch_size=4):
+    
+    # print('pos_edges@prepare_dataloader')
+    # print(pos_edges[:10])
+    # print('neg_edges@prepare_dataloader()')
+    # print(neg_edges[:10])
+    
+    # 创建DataLoader
+    dataset = TensorDataset(pos_edges, neg_edges)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    
+    return loader
+
+# def construct_negative_edges(g, num_neg_samples):
+#     import random
+    
+#     all_nodes = list(range(g.number_of_nodes()))
+#     neg_edges = []
+#     tried_pairs = set()
+    
+#     while len(neg_edges) < num_neg_samples:
+#         u = random.choice(all_nodes)
+#         v = random.choice(all_nodes)
+#         if u == v or (u, v) in tried_pairs:
+#             continue
+        
+#         tried_pairs.add((u, v))
+#         tried_pairs.add((v, u))
+        
+#         if not g.has_edges_between(u, v):
+#             neg_edges.append([u, v])
+    
+#     neg_edges = torch.tensor(neg_edges)
+#     return neg_edges
+
+
+def train(model, train_loader, optimizer, g, features):
+    model.train()
+    total_loss = 0
+    for batch in train_loader:
+        
+        # print('batch')
+        # print(batch)
+        
+        pos_edges, neg_edges = batch
+        optimizer.zero_grad()
+        
+        # 获取图的节点表示
+        h = model(g, features)
+        
+        # print('pos_edges@train')
+        # print(pos_edges)
+        
+        # print('pos_labels@train')
+        # print(pos_labels)
+        
+        # 使用predict_links方法计算正负样本的预测得分
+        pos_score = model.predict_links(h, pos_edges)
+        neg_score = model.predict_links(h, neg_edges)
+        
+        # 创建标签并计算损失
+        labels = torch.cat([torch.ones(pos_score.size(0)), torch.zeros(neg_score.size(0))])
+        predictions = torch.cat([pos_score, neg_score])
+        
+        # 在计算损失之前，确保labels的尺寸与predictions匹配
+        labels = labels.unsqueeze(1)
+        
+        loss = F.binary_cross_entropy(predictions, labels)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+        
+    avg_loss = total_loss / len(train_loader)
+    print(f'Average Loss: {avg_loss}')
+    return avg_loss
+
+def evaluate(model, loader, g, features):
+    model.eval()
+    y_true = []
+    y_pred = []
+    with torch.no_grad():
+        for batch in loader:
+            pos_edges, neg_edges = batch
+            
+            # 获取图的节点表示
+            h = model(g, features)
+            
+            # 使用predict_links方法计算正负样本的预测得分
+            pos_score = model.predict_links(h, pos_edges)
+            neg_score = model.predict_links(h, neg_edges)
+            
+            # 更新真实标签和预测得分列表
+            y_true.extend([1] * pos_score.size(0))
+            y_true.extend([0] * neg_score.size(0))
+            y_pred.extend(pos_score.squeeze().tolist())
+            y_pred.extend(neg_score.squeeze().tolist())
+            
+    # 计算性能指标
+    y_pred = torch.sigmoid(torch.tensor(y_pred))
+    auc = roc_auc_score(y_true, y_pred)
+    accuracy = accuracy_score(y_true, (y_pred > 0.5).long().tolist())
+    
+    print(f'Evaluation - AUC: {auc}, Accuracy: {accuracy}')
+    return auc, accuracy
 
 def recommend_papers(model, g, features, paper_id, top_k=10):
     model.eval()
@@ -120,7 +269,13 @@ def recommend_papers(model, g, features, paper_id, top_k=10):
     return recommended_ids
 
 def main():
-    g, features, papers, edges, uuid_to_index = load_data('paper.json')
+    g, features, papers, edges, uuid_to_index = load_data('./data/paper.json')
+    
+    pos_train, pos_val, pos_test, neg_train, neg_val, neg_test = construct_positive_negative_edges(g, edges, uuid_to_index)
+
+    train_loader = prepare_dataloader(pos_train, neg_train)
+    val_loader = prepare_dataloader(pos_val, neg_val)
+    test_loader = prepare_dataloader(pos_test, neg_test)
     
     # print('g.number_of_nodes()')  # 图中节点数量
     # print(g.number_of_nodes())  # 图中节点数量
@@ -128,51 +283,72 @@ def main():
     # print(features.shape[0])  # 特征张量中的样本数（节点数）
 
     model = GNNModel(in_feats=features.shape[1], hidden_feats=16)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    
+    # 尝试加载已有模型
+    model_checkpoint_path = 'model_checkpoint.pth'
+    if os.path.exists(model_checkpoint_path):
+        model.load_state_dict(torch.load(model_checkpoint_path))
+        print('Model loaded and will continue training.')
+    else:
+        print('No existing model found. Starting training from scratch.')
     
     # print(papers)
     # print(edges)
     
-    # 构造正样本边，使用uuid_to_index映射
-    pos_edges = []
-    for edge in edges:
-        src = uuid_to_index[edge['source']]
-        targets = [uuid_to_index[t] for t in edge['target']]
-        for dst in targets:
-            pos_edges.append((src, dst))
-    pos_edges = torch.tensor(pos_edges).t()
+    # # 构造正样本边，使用uuid_to_index映射
+    # pos_edges = []
+    # for edge in edges:
+    #     src = uuid_to_index[edge['source']]
+    #     targets = [uuid_to_index[t] for t in edge['target']]
+    #     for dst in targets:
+    #         pos_edges.append((src, dst))
+    # pos_edges = torch.tensor(pos_edges).t()
 
-    # print(pos_edges.size())  # 检查尺寸是否正确
-    neg_edges = construct_negative_edges(g, len(pos_edges))
+    # # print(pos_edges.size())  # 检查尺寸是否正确
+    # neg_edges = construct_negative_edges(g, len(pos_edges))
     
     # print('pos_edges')
     # print(pos_edges)
     # print('neg_edges')
     # print(neg_edges)
     
-    for epoch in range(1000):
-        model.train()
-        h = model(g, features)
-        pos_score = model.predict_links(h, pos_edges)
-        neg_score = model.predict_links(h, neg_edges)
+    for epoch in range(100):
+        # model.train()
+        # h = model(g, features)
+        # pos_score = model.predict_links(h, pos_edges)
+        # neg_score = model.predict_links(h, neg_edges)
         
-        # 使用二进制交叉熵损失
-        labels = torch.cat([torch.ones(pos_score.size(0)), torch.zeros(neg_score.size(0))])
-        predictions = torch.cat([pos_score, neg_score])
+        # # 使用二进制交叉熵损失
+        # labels = torch.cat([torch.ones(pos_score.size(0)), torch.zeros(neg_score.size(0))])
+        # predictions = torch.cat([pos_score, neg_score])
         
-        # 亦可↓ 
-        # Ensure the labels and predictions have the same shape
-        # labels = labels.view(predictions.shape)
-        # 在计算损失之前，确保labels的尺寸与predictions匹配
-        labels = labels.unsqueeze(1)
+        # # 亦可↓ 
+        # # Ensure the labels and predictions have the same shape
+        # # labels = labels.view(predictions.shape)
+        # # 在计算损失之前，确保labels的尺寸与predictions匹配
+        # labels = labels.unsqueeze(1)
         
-        loss = F.binary_cross_entropy(predictions, labels)
+        # loss = F.binary_cross_entropy(predictions, labels)
         
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        print(f'Epoch {epoch+1}, Loss: {loss.item()}')
-
+        # optimizer.zero_grad()
+        # loss.backward()
+        # optimizer.step()
+        # print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+        
+        train_loss = train(model, train_loader, optimizer, g, features)
+        val_auc, val_accuracy = evaluate(model, val_loader, g, features)
+        print(f'Epoch {epoch+1}, Loss: {train_loss:.4f}, Val AUC: {val_auc:.4f}, Val Accuracy: {val_accuracy:.4f}')
+        
+        # 训练结束后保存模型
+        # 每10轮保存一次模型
+        if (epoch + 1) % 10 == 0:
+            torch.save(model.state_dict(), model_checkpoint_path)
+            print(f'Model saved at epoch {epoch+1}')     
+            
+    test_auc, test_accuracy = evaluate(model, test_loader)
+    print(f'Test AUC: {test_auc:.4f}, Test Accuracy: {test_accuracy:.4f}')
+    
     # 从外部获取UUID形式的paper_id
     input_uuid = input("请输入论文UUID：")
     if input_uuid in uuid_to_index:
