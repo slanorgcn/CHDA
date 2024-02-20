@@ -152,7 +152,7 @@ def construct_positive_negative_edges(g, edges, uuid_to_index, test_size=0.2, va
 
     return pos_train_tensor, pos_val_tensor, pos_test_tensor, neg_train_tensor, neg_val_tensor, neg_test_tensor
 
-def prepare_dataloader(pos_edges, neg_edges, batch_size=4):
+def prepare_dataloader(pos_edges, neg_edges, batch_size=512):
     
     # print('pos_edges@prepare_dataloader')
     # print(pos_edges[:10])
@@ -313,7 +313,7 @@ def main():
     # print('neg_edges')
     # print(neg_edges)
     
-    for epoch in range(100):
+    for epoch in range(1000):
         # model.train()
         # h = model(g, features)
         # pos_score = model.predict_links(h, pos_edges)
@@ -346,7 +346,7 @@ def main():
             torch.save(model.state_dict(), model_checkpoint_path)
             print(f'Model saved at epoch {epoch+1}')     
             
-    test_auc, test_accuracy = evaluate(model, test_loader)
+    test_auc, test_accuracy = evaluate(model, test_loader, g, features)
     print(f'Test AUC: {test_auc:.4f}, Test Accuracy: {test_accuracy:.4f}')
     
     # 从外部获取UUID形式的paper_id

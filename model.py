@@ -13,12 +13,12 @@ class GNNModel(nn.Module):
         # 添加一个输出层，用于链接预测
         self.predict = nn.Linear(hidden_feats * 2, 1)
     
-    def forward(self, g, features):
+    def forward(self, g, inputs):
 
         # print(g)
-        # print(features)
+        # print(inputs)
         
-        h = self.conv1(g, features)
+        h = self.conv1(g, inputs)
         h = F.relu(h)
         h = self.conv2(g, h)
         return h
