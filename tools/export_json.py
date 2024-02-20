@@ -1,3 +1,4 @@
+import os
 import pymysql
 import json
 from dotenv import load_dotenv, set_key
@@ -26,9 +27,10 @@ try:
             paper = {
                 "id": uuid,
                 "title": title,
+                "journal": journal,
                 "abstract": abstract,
                 "year": year,
-                "authors": authors.split(', ')
+                "authors": [author.strip() for author in authors.split(',')]
             }
             papers.append(paper)
 
@@ -53,7 +55,7 @@ try:
     }
 
     # 导出为JSON
-    with open('paper.json', 'w') as json_file:
+    with open('../data/paper.json', 'w') as json_file:
         json.dump(export_data, json_file, ensure_ascii=False, indent=4)
 
 finally:
