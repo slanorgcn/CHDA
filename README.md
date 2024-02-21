@@ -46,12 +46,36 @@ python ./tools/export_json.py
 
 我们将超图转换为标准图进行模型训练，以此来模拟文献之间的引用关系。例如，一篇文章引用多篇文献时，会通过一个额外的节点（超边）连接这篇文章和其引用的文献节点，有效地表示引用关系。
 
-以下是使用 `Neo4j` 创建模型结构的示例：
+以下是使用 `Neo4j` (`5.x` 版本)创建模型结构的示例，您可以直接将处置好的 `MySQL` 的表导出为两个 `CSV` 文件，然后直接进行导入后查看：
+
+**导入节点（论文）**
 
 ```cypher
-CREATE (paper:Paper {id: "文章 UUID"})-[:HAS_REFERENCE]->(refEdge:ReferenceEdge {id: "超边 UUID"})
-CREATE (refEdge)-[:REFERENCES]->(:Document {id: "文献1 UUID"})
-CREATE (refEdge)-[:REFERENCES]->(:Document {id: "文献2 UUID"})
+LOAD CSV WITH HEADERS FROM 'file:///papercollection.csv' AS row
+CREATE (:Paper {
+  uuid: row.uuid,
+  title: row.paper_title,
+  year: row.publication_year,
+  journal: row.journal_name,
+  authors: row.authors,
+  abstract: row.abstract
+})
+```
+
+**导入关系（引用关系）**
+
+对于 `paperreferences.csv` 中的每一行，我们创建一个中间节点（模拟超边）来表示一篇论文引用的所有其他论文，并创建相应的关系。由于 `paperreferences.csv` 可能包含一对多的引用关系，我们将按照源论文（`paper_uuid`）进行分组，并为每个源论文创建一个单独的引用集合节点。
+
+```cypher
+LOAD CSV WITH HEADERS FROM 'file:///paperreferences.csv' AS row
+MATCH (source:Paper {uuid: row.paper_uuid})
+WITH source, COLLECT(row.referenced_paper_uuid) AS refs
+CREATE (refSet:ReferenceSet {id: randomUUID()})
+MERGE (source)-[:HAS_REF_SET]->(refSet)
+WITH refSet, refs
+UNWIND refs AS refUuid
+MATCH (target:Paper {uuid: refUuid})
+MERGE (refSet)-[:REFERENCES]->(target);
 ```
 
 ## 训练与验证

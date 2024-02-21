@@ -4,18 +4,15 @@ import json
 import os
 
 from tabulate import tabulate
+
 from model import GNNModel
-from dotenv import load_dotenv, set_key
+import config
 
-# Config
-load_dotenv()
-hidden_feats=int(os.getenv('HIDDEN_FEATS'))
-
-def load_model(model_path, in_feats, hidden_feats):
+def load_model(model_path, in_feats, hidden_feats, num_layers):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     """加载训练好的模型"""
-    model = GNNModel(in_feats=in_feats, hidden_feats=hidden_feats).to(device)
+    model = GNNModel(in_feats=in_feats, hidden_feats=hidden_feats, num_layers=num_layers).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()  # 切换到评估模式
     return model
@@ -50,7 +47,7 @@ def main():
     
     # 加载图数据和特征（这里需要你根据实际情况填充或修改）
     g = dgl.load_graphs('graph_data.bin')[0][0]  # 假设图数据已保存为DGL的二进制格式
-    features = torch.load('your_features.pt')  # 假设节点特征已保存为PyTorch张量
+    features = torch.load('features_file.pt')  # 假设节点特征已保存为PyTorch张量
     
     g = g.to(device)
     features = features.to(device)
@@ -58,7 +55,7 @@ def main():
     # 加载模型（调整路径、输入特征维度和隐藏层特征维度）
     model_path = 'model_checkpoint.pth'
     in_feats = features.shape[1]
-    model = load_model(model_path, in_feats, hidden_feats)
+    model = load_model(model_path, in_feats, config.hidden_feats, config.num_layers)
 
     # 定义UUID到索引的映射
     with open('./data/paper.json', 'r', encoding='utf-8') as file:

@@ -15,24 +15,18 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, accuracy_score
 from torch.utils.data import DataLoader, TensorDataset
-from dotenv import load_dotenv, set_key
 
 from model import GNNModel
+import config
 
-# Config
-load_dotenv()
-batch_size=int(os.getenv('BATCH_SIZE'))
-lr=float(os.getenv('LR'))
-hidden_feats=int(os.getenv('HIDDEN_FEATS'))
-epoch_count=int(os.getenv('EPOCH_COUNT'))
-save_per_epoch=int(os.getenv('SAVE_PER_EPOCH'))
+
     
 def load_data(filename):
     
     # 如果特征与图数据有更新，请删除以下文件，确保删除旧的graph_data.bin、your_features.pt和uuid_to_index.pt文件。
     # 这样，下次运行load_data函数时，会根据更新后的数据重新生成和保存这些文件。
     graph_data_file = 'graph_data.bin'
-    features_file = 'your_features.pt'
+    features_file = 'features_file.pt'
     uuid_to_index_file = 'uuid_to_index.pt'
 
     # 每次都载入内存
@@ -94,6 +88,10 @@ def load_data(filename):
     encoder = OneHotEncoder(sparse=False)
     author_features = encoder.fit_transform(np.array(authors_list).reshape(-1, 1))
     
+    # 拼接所有特征
+    features = np.concatenate([years, title_embeddings, abstract_embeddings, journal_embeddings, author_features], axis=1)
+    features = torch.FloatTensor(features) 
+    
     # 实例化归一化工具
     scaler = StandardScaler()    
     
@@ -104,23 +102,27 @@ def load_data(filename):
     title_embeddings_scaled = scaler.fit_transform(title_embeddings)
     abstract_embeddings_scaled = scaler.fit_transform(abstract_embeddings)
     journal_embeddings_scaled = scaler.fit_transform(journal_embeddings)
-
-    # 注意：作者特征(author_features)通常不需要归一化，因为它是独热编码的    
-    
-    # 拼接所有特征
-    # features = np.concatenate([years, title_embeddings, abstract_embeddings, journal_embeddings, author_features], axis=1)
-    # features = torch.FloatTensor(features) 
     
     # 拼接所有归一化后的特征
     features_scaled = np.concatenate([years_scaled, title_embeddings_scaled, abstract_embeddings_scaled, journal_embeddings_scaled, author_features], axis=1)
     features_scaled = torch.FloatTensor(features_scaled)
+
+    # 注意：作者特征(author_features)通常不需要归一化，因为它是独热编码的    
     
     # 保存特征数据为 .pt 文件用于预测脚本
+    # torch.save(features, features_file)
     torch.save(features_scaled, features_file)
     
     # 保存从UUID到图节点索引的映射数据为 .pt 文件用于预测脚本
     uuid_to_index = {paper['id']: idx for idx, paper in enumerate(data['papers'])}
     torch.save(uuid_to_index, uuid_to_index_file)
+    
+    # 将映射转换为JSON格式的字符串
+    uuid_to_index_json = json.dumps(uuid_to_index, indent=4)
+
+    # 将JSON字符串保存到文件，以备参考对照
+    with open('uuid_to_index.json', 'w') as json_file:
+        json_file.write(uuid_to_index_json)
     
     # print('title_embeddings')
     # print(title_embeddings)
@@ -128,6 +130,7 @@ def load_data(filename):
     # print('author_features')
     # print(author_features)
     
+    # return g, features, data['papers'], data['edges'], uuid_to_index
     return g, features_scaled, data['papers'], data['edges'], uuid_to_index
 
 
@@ -215,8 +218,8 @@ def train(model, train_loader, optimizer, g, features):
         # print('pos_edges@train')
         # print(pos_edges)
         
-        # print('pos_labels@train')
-        # print(pos_labels)
+        # print('neg_edges@train')
+        # print(neg_edges)
         
         # 使用predict_links方法计算正负样本的预测得分
         pos_score = model.predict_links(h, pos_edges)
@@ -239,18 +242,18 @@ def train(model, train_loader, optimizer, g, features):
     return avg_loss
 
 def evaluate(model, loader, g, features):
-    device = model.device  # 获取模型所在的设备
+    device = next(model.parameters()).device  # 更健壮的获取模型所在设备的方式
     
     model.eval()
     y_true = []
-    y_pred = []
+    y_pred_probs = []  # 存储预测概率
     with torch.no_grad():
         for batch in loader:
             pos_edges, neg_edges = batch
             pos_edges, neg_edges = pos_edges.to(device), neg_edges.to(device)
             
             # 获取图的节点表示
-            h = model(g, features)
+            h = model(g.to(device), features.to(device))
             
             # 使用predict_links方法计算正负样本的预测得分
             pos_score = model.predict_links(h, pos_edges)
@@ -259,13 +262,15 @@ def evaluate(model, loader, g, features):
             # 更新真实标签和预测得分列表
             y_true.extend([1] * pos_score.size(0))
             y_true.extend([0] * neg_score.size(0))
-            y_pred.extend(pos_score.squeeze().tolist())
-            y_pred.extend(neg_score.squeeze().tolist())
+            y_pred_probs.extend(pos_score.squeeze().tolist())
+            y_pred_probs.extend(neg_score.squeeze().tolist())
             
+    # 假设y_pred_probs已经是概率，无需再次应用sigmoid
+    y_pred = [1 if prob > 0.5 else 0 for prob in y_pred_probs]  # 根据阈值将概率转换为二值预测结果
+    
     # 计算性能指标
-    y_pred = torch.sigmoid(torch.tensor(y_pred))
-    auc = roc_auc_score(y_true, y_pred)
-    accuracy = accuracy_score(y_true, (y_pred > 0.5).long().tolist())
+    auc = roc_auc_score(y_true, y_pred_probs)  # AUC计算应使用预测概率
+    accuracy = accuracy_score(y_true, y_pred)  # 准确率使用二值化后的预测
     
     print(f'Evaluation - AUC: {auc}, Accuracy: {accuracy}')
     return auc, accuracy
@@ -295,28 +300,28 @@ def main():
     
     pos_train, pos_val, pos_test, neg_train, neg_val, neg_test = construct_positive_negative_edges(g, edges, uuid_to_index)
 
-    train_loader = prepare_dataloader(pos_train, neg_train, batch_size)
-    val_loader = prepare_dataloader(pos_val, neg_val, batch_size)
-    test_loader = prepare_dataloader(pos_test, neg_test, batch_size)
+    train_loader = prepare_dataloader(pos_train, neg_train, config.batch_size)
+    val_loader = prepare_dataloader(pos_val, neg_val, config.batch_size)
+    test_loader = prepare_dataloader(pos_test, neg_test, config.batch_size)
     
     # print('g.number_of_nodes()')  # 图中节点数量
     # print(g.number_of_nodes())  # 图中节点数量
     # print('features.shape[0]')  # 特征张量中的样本数（节点数）
     # print(features.shape[0])  # 特征张量中的样本数（节点数）
 
-    model = GNNModel(in_feats=features.shape[1], hidden_feats=hidden_feats).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    model = GNNModel(in_feats=features.shape[1], hidden_feats=config.hidden_feats, num_layers=config.num_layers).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     
     # 尝试加载已有模型
     model_checkpoint_path = 'model_checkpoint.pth'
     if os.path.exists(model_checkpoint_path):
-        model.load_state_dict(torch.load(model_checkpoint_path)).to(device)
+        model.load_state_dict(torch.load(model_checkpoint_path, map_location=device))
         print('Model loaded and will continue training.')
     else:
         print('No existing model found. Starting training from scratch.')
     
     
-    for epoch in range(epoch_count):
+    for epoch in range(config.epoch_count):
         
         train_loss = train(model, train_loader, optimizer, g, features)
         val_auc, val_accuracy = evaluate(model, val_loader, g, features)
@@ -324,7 +329,7 @@ def main():
         
         # 训练结束后保存模型:% N
         # 每N轮保存一次模型
-        if (epoch + 1) % save_per_epoch == 0:
+        if (epoch + 1) % config.save_per_epoch == 0:
             torch.save(model.state_dict(), model_checkpoint_path)
             print(f'Model saved at epoch {epoch+1}')     
             
