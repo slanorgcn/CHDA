@@ -27,7 +27,7 @@ def main():
     # 加载模型（调整路径、输入特征维度和隐藏层特征维度）
     model_path = 'model_checkpoint.pth'
     in_feats = features.shape[1]
-    model = load_model(model_path, in_feats, config.hidden_feats, config.num_layers)
+    model = utils.load_model(model_path, in_feats, config.hidden_feats, config.num_layers)
 
     # 定义UUID到索引的映射
     with open('./data/paper.json', 'r', encoding='utf-8') as file:
@@ -43,7 +43,7 @@ def main():
             # 查找输入UUID对应的论文索引
             if input_uuid in uuid_to_index:
                 paper_index = uuid_to_index[input_uuid]
-                recommended_ids = recommend_papers(model, g, features, paper_index, top_k=10)
+                recommended_ids = utils.recommend_papers(model, g, features, paper_index, top_k=10)
 
                 # 获取推荐论文的详细信息
                 recommended_papers_info = []

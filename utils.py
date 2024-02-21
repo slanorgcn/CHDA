@@ -1,3 +1,6 @@
+import torch
+from model import GNNModel
+
 def recommend_papers(model, g, features, paper_id, top_k=10):
     model.eval()
     with torch.no_grad():

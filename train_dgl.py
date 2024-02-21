@@ -332,7 +332,7 @@ def main():
     input_uuid = input("请输入论文UUID：")
     if input_uuid in uuid_to_index:
         paper_index = uuid_to_index[input_uuid]
-        recommended_ids = recommend_papers(model, g, features, paper_index, top_k=10)
+        recommended_ids = utils.recommend_papers(model, g, features, paper_index, top_k=10)
         
         # 将推荐的索引转换回UUID
         index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}
