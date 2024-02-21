@@ -15,16 +15,43 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, accuracy_score
 from torch.utils.data import DataLoader, TensorDataset
+from dotenv import load_dotenv, set_key
 
 from model import GNNModel
+
+# Config
+load_dotenv()
+batch_size=int(os.getenv('BATCH_SIZE'))
+lr=float(os.getenv('LR'))
+hidden_feats=int(os.getenv('HIDDEN_FEATS'))
+epoch_count=int(os.getenv('EPOCH_COUNT'))
+save_per_epoch=int(os.getenv('SAVE_PER_EPOCH'))
     
 def load_data(filename):
+    
+    # 如果特征与图数据有更新，请删除以下文件，确保删除旧的graph_data.bin、your_features.pt和uuid_to_index.pt文件。
+    # 这样，下次运行load_data函数时，会根据更新后的数据重新生成和保存这些文件。
+    graph_data_file = 'graph_data.bin'
+    features_file = 'your_features.pt'
+    uuid_to_index_file = 'uuid_to_index.pt'
+
+    # 每次都载入内存
+    with open(filename, 'r') as file:
+        data = json.load(file)
+        
+    # 检查文件是否存在，如果存在则直接加载
+    if os.path.exists(graph_data_file) and os.path.exists(features_file) and os.path.exists(uuid_to_index_file):
+        graphs, _ = load_graphs(graph_data_file)
+        g = graphs[0]  # 加载图
+        features_scaled = torch.load(features_file)  # 加载特征
+        uuid_to_index = torch.load(uuid_to_index_file)  # 加载uuid到索引的映射
+        return g, features_scaled, data['papers'], data['edges'], uuid_to_index
+    
+    # 如果文件不存在，执行原有的数据加载和处理流程
+    
     # 加载预训练的fastText模型
     fasttext.util.download_model('zh', if_exists='ignore')  # 'zh'代表中文
     ft = fasttext.load_model('cc.zh.300.bin')
-    
-    with open(filename, 'r') as file:
-        data = json.load(file)
     
     # 创建从UUID到整数索引的映射
     uuid_to_index = {paper['id']: idx for idx, paper in enumerate(data['papers'])}
@@ -46,7 +73,7 @@ def load_data(filename):
     g = dgl.add_self_loop(g)
     
     # 保存一份DGL的二进制格式用于预测脚本
-    save_graphs('graph_data.bin', [g])
+    save_graphs(graph_data_file, [g])
     
     # 处理年份特征
     years = np.array([[paper['year']] for paper in data['papers']])
@@ -89,11 +116,11 @@ def load_data(filename):
     features_scaled = torch.FloatTensor(features_scaled)
     
     # 保存特征数据为 .pt 文件用于预测脚本
-    torch.save(features_scaled, 'your_features.pt')
+    torch.save(features_scaled, features_file)
     
     # 保存从UUID到图节点索引的映射数据为 .pt 文件用于预测脚本
     uuid_to_index = {paper['id']: idx for idx, paper in enumerate(data['papers'])}
-    torch.save(uuid_to_index, 'uuid_to_index.pt')
+    torch.save(uuid_to_index, uuid_to_index_file)
     
     # print('title_embeddings')
     # print(title_embeddings)
@@ -152,7 +179,7 @@ def construct_positive_negative_edges(g, edges, uuid_to_index, test_size=0.2, va
 
     return pos_train_tensor, pos_val_tensor, pos_test_tensor, neg_train_tensor, neg_val_tensor, neg_test_tensor
 
-def prepare_dataloader(pos_edges, neg_edges, batch_size=512):
+def prepare_dataloader(pos_edges, neg_edges, batch_size):
     
     # print('pos_edges@prepare_dataloader')
     # print(pos_edges[:10])
@@ -164,28 +191,6 @@ def prepare_dataloader(pos_edges, neg_edges, batch_size=512):
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
     
     return loader
-
-# def construct_negative_edges(g, num_neg_samples):
-#     import random
-    
-#     all_nodes = list(range(g.number_of_nodes()))
-#     neg_edges = []
-#     tried_pairs = set()
-    
-#     while len(neg_edges) < num_neg_samples:
-#         u = random.choice(all_nodes)
-#         v = random.choice(all_nodes)
-#         if u == v or (u, v) in tried_pairs:
-#             continue
-        
-#         tried_pairs.add((u, v))
-#         tried_pairs.add((v, u))
-        
-#         if not g.has_edges_between(u, v):
-#             neg_edges.append([u, v])
-    
-#     neg_edges = torch.tensor(neg_edges)
-#     return neg_edges
 
 
 def train(model, train_loader, optimizer, g, features):
@@ -273,17 +278,17 @@ def main():
     
     pos_train, pos_val, pos_test, neg_train, neg_val, neg_test = construct_positive_negative_edges(g, edges, uuid_to_index)
 
-    train_loader = prepare_dataloader(pos_train, neg_train)
-    val_loader = prepare_dataloader(pos_val, neg_val)
-    test_loader = prepare_dataloader(pos_test, neg_test)
+    train_loader = prepare_dataloader(pos_train, neg_train, batch_size)
+    val_loader = prepare_dataloader(pos_val, neg_val, batch_size)
+    test_loader = prepare_dataloader(pos_test, neg_test, batch_size)
     
     # print('g.number_of_nodes()')  # 图中节点数量
     # print(g.number_of_nodes())  # 图中节点数量
     # print('features.shape[0]')  # 特征张量中的样本数（节点数）
     # print(features.shape[0])  # 特征张量中的样本数（节点数）
 
-    model = GNNModel(in_feats=features.shape[1], hidden_feats=16)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    model = GNNModel(in_feats=features.shape[1], hidden_feats=hidden_feats)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     
     # 尝试加载已有模型
     model_checkpoint_path = 'model_checkpoint.pth'
@@ -293,56 +298,16 @@ def main():
     else:
         print('No existing model found. Starting training from scratch.')
     
-    # print(papers)
-    # print(edges)
     
-    # # 构造正样本边，使用uuid_to_index映射
-    # pos_edges = []
-    # for edge in edges:
-    #     src = uuid_to_index[edge['source']]
-    #     targets = [uuid_to_index[t] for t in edge['target']]
-    #     for dst in targets:
-    #         pos_edges.append((src, dst))
-    # pos_edges = torch.tensor(pos_edges).t()
-
-    # # print(pos_edges.size())  # 检查尺寸是否正确
-    # neg_edges = construct_negative_edges(g, len(pos_edges))
-    
-    # print('pos_edges')
-    # print(pos_edges)
-    # print('neg_edges')
-    # print(neg_edges)
-    
-    for epoch in range(1000):
-        # model.train()
-        # h = model(g, features)
-        # pos_score = model.predict_links(h, pos_edges)
-        # neg_score = model.predict_links(h, neg_edges)
-        
-        # # 使用二进制交叉熵损失
-        # labels = torch.cat([torch.ones(pos_score.size(0)), torch.zeros(neg_score.size(0))])
-        # predictions = torch.cat([pos_score, neg_score])
-        
-        # # 亦可↓ 
-        # # Ensure the labels and predictions have the same shape
-        # # labels = labels.view(predictions.shape)
-        # # 在计算损失之前，确保labels的尺寸与predictions匹配
-        # labels = labels.unsqueeze(1)
-        
-        # loss = F.binary_cross_entropy(predictions, labels)
-        
-        # optimizer.zero_grad()
-        # loss.backward()
-        # optimizer.step()
-        # print(f'Epoch {epoch+1}, Loss: {loss.item()}')
+    for epoch in range(epoch_count):
         
         train_loss = train(model, train_loader, optimizer, g, features)
         val_auc, val_accuracy = evaluate(model, val_loader, g, features)
         print(f'Epoch {epoch+1}, Loss: {train_loss:.4f}, Val AUC: {val_auc:.4f}, Val Accuracy: {val_accuracy:.4f}')
         
-        # 训练结束后保存模型
-        # 每10轮保存一次模型
-        if (epoch + 1) % 10 == 0:
+        # 训练结束后保存模型:% N
+        # 每N轮保存一次模型
+        if (epoch + 1) % save_per_epoch == 0:
             torch.save(model.state_dict(), model_checkpoint_path)
             print(f'Model saved at epoch {epoch+1}')     
             

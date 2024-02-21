@@ -26,7 +26,5 @@ class GNNModel(nn.Module):
     def predict_links(self, h, edges):
         # 用于链接预测的辅助函数，edges为节点对的索引
         edge_h = torch.cat((h[edges[0]], h[edges[1]]), dim=1)
-        # print('edge_h@predict_links')
-        # print(edge_h)
         return torch.sigmoid(self.predict(edge_h))
     

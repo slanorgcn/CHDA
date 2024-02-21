@@ -56,7 +56,7 @@ CREATE (refEdge)-[:REFERENCES]->(:Document {id: "文献2 UUID"})
 
 ## 训练与验证
 
-运行训练脚本：
+运行训练脚本（重命名`.env.sample`为`.env`并按需调整），数据集有更新，请及时删除旧的`graph_data.bin`、`your_features.pt`和`uuid_to_index.pt`文件：
 
 ```sh
 python train_dgl.py

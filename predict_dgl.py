@@ -1,8 +1,15 @@
 import torch
 import dgl
+import json
+import os
+
 from tabulate import tabulate
 from model import GNNModel
-import json
+from dotenv import load_dotenv, set_key
+
+# Config
+load_dotenv()
+hidden_feats=int(os.getenv('HIDDEN_FEATS'))
 
 def load_model(model_path, in_feats, hidden_feats):
     """加载训练好的模型"""
@@ -39,7 +46,6 @@ def main():
     # 加载模型（调整路径、输入特征维度和隐藏层特征维度）
     model_path = 'model_checkpoint.pth'
     in_feats = features.shape[1]
-    hidden_feats = 16  # 根据你的模型实际情况调整
     model = load_model(model_path, in_feats, hidden_feats)
 
     # 定义UUID到索引的映射
