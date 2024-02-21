@@ -12,7 +12,7 @@
 pip install dgl torch gensim fasttext
 ```
 
-参考文档：[DGL 开始指南](https://www.dgl.ai/pages/start.html)
+如果是 N 卡，可考虑安装 GPU 版本，具体请参考文档：[DGL 开始指南](https://www.dgl.ai/pages/start.html)
 
 ## 数据集
 

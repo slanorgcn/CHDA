@@ -36,7 +36,7 @@ def load_data(filename):
     uuid_to_index_file = 'uuid_to_index.pt'
 
     # 每次都载入内存
-    with open(filename, 'r') as file:
+    with open(filename, 'r', encoding='utf-8') as file:
         data = json.load(file)
         
     # 检查文件是否存在，如果存在则直接加载
@@ -194,6 +194,7 @@ def prepare_dataloader(pos_edges, neg_edges, batch_size):
 
 
 def train(model, train_loader, optimizer, g, features):
+    device = model.device  # 从模型中获取当前设备
     model.train()
     total_loss = 0
     for batch in train_loader:
@@ -202,6 +203,10 @@ def train(model, train_loader, optimizer, g, features):
         # print(batch)
         
         pos_edges, neg_edges = batch
+        
+        pos_edges = pos_edges.to(device)  # 移动到正确的设备
+        neg_edges = neg_edges.to(device)  # 移动到正确的设备
+        
         optimizer.zero_grad()
         
         # 获取图的节点表示
@@ -218,7 +223,7 @@ def train(model, train_loader, optimizer, g, features):
         neg_score = model.predict_links(h, neg_edges)
         
         # 创建标签并计算损失
-        labels = torch.cat([torch.ones(pos_score.size(0)), torch.zeros(neg_score.size(0))])
+        labels = torch.cat([torch.ones(pos_score.size(0), device=device), torch.zeros(neg_score.size(0), device=device)])
         predictions = torch.cat([pos_score, neg_score])
         
         # 在计算损失之前，确保labels的尺寸与predictions匹配
@@ -234,12 +239,15 @@ def train(model, train_loader, optimizer, g, features):
     return avg_loss
 
 def evaluate(model, loader, g, features):
+    device = model.device  # 获取模型所在的设备
+    
     model.eval()
     y_true = []
     y_pred = []
     with torch.no_grad():
         for batch in loader:
             pos_edges, neg_edges = batch
+            pos_edges, neg_edges = pos_edges.to(device), neg_edges.to(device)
             
             # 获取图的节点表示
             h = model(g, features)
@@ -274,7 +282,16 @@ def recommend_papers(model, g, features, paper_id, top_k=10):
     return recommended_ids
 
 def main():
+    
+    # 确定执行的设备
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    
     g, features, papers, edges, uuid_to_index = load_data('./data/paper.json')
+    
+    # 移动图和特征到指定设备
+    g = g.to(device)
+    features = features.to(device)
     
     pos_train, pos_val, pos_test, neg_train, neg_val, neg_test = construct_positive_negative_edges(g, edges, uuid_to_index)
 
@@ -287,13 +304,13 @@ def main():
     # print('features.shape[0]')  # 特征张量中的样本数（节点数）
     # print(features.shape[0])  # 特征张量中的样本数（节点数）
 
-    model = GNNModel(in_feats=features.shape[1], hidden_feats=hidden_feats)
+    model = GNNModel(in_feats=features.shape[1], hidden_feats=hidden_feats).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     
     # 尝试加载已有模型
     model_checkpoint_path = 'model_checkpoint.pth'
     if os.path.exists(model_checkpoint_path):
-        model.load_state_dict(torch.load(model_checkpoint_path))
+        model.load_state_dict(torch.load(model_checkpoint_path)).to(device)
         print('Model loaded and will continue training.')
     else:
         print('No existing model found. Starting training from scratch.')
