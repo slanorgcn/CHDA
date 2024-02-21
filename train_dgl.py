@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from model import GNNModel
 import config
+import utils
 
 
     
@@ -275,16 +276,7 @@ def evaluate(model, loader, g, features):
     print(f'Evaluation - AUC: {auc}, Accuracy: {accuracy}')
     return auc, accuracy
 
-def recommend_papers(model, g, features, paper_id, top_k=10):
-    model.eval()
-    with torch.no_grad():
-        paper_embeddings = model(g, features)
-        query_embedding = paper_embeddings[paper_id]
-        scores = torch.matmul(paper_embeddings, query_embedding)
-        top_k_adjusted = min(top_k, g.number_of_nodes() - 2)  # 确保不超出范围
-        _, indices = torch.topk(scores, k=top_k_adjusted+1)  # +1可能包括论文自身
-    recommended_ids = [idx.item() for idx in indices if idx.item() != paper_id][:top_k_adjusted]
-    return recommended_ids
+
 
 def main():
     

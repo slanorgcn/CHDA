@@ -78,6 +78,12 @@ MATCH (target:Paper {uuid: refUuid})
 MERGE (refSet)-[:REFERENCES]->(target);
 ```
 
+**二部图截图（模拟超边）**
+
+![alt text](https://oss.v-dk.com/img/202402211851917.jpg)
+
+![alt text](https://oss.v-dk.com/img/202402211851640.jpg)
+
 ## 训练与验证
 
 运行训练脚本（重命名`.env.sample`为`.env`并按需调整），数据集有更新，请及时删除旧的`graph_data.bin`、`your_features.pt`和`uuid_to_index.pt`文件：
