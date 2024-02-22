@@ -16,6 +16,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, accuracy_score
 from torch.utils.data import DataLoader, TensorDataset
 from tabulate import tabulate
+from scipy import stats
 
 from model import GNNModel
 import config
@@ -308,41 +309,40 @@ def train(model, train_loader, optimizer, g, features):
     return avg_loss
 
 
+def ndcg_score(y_true, y_score, k=10):
+    """计算NDCG@k"""
+    actual = np.take(y_true, np.argsort(y_score)[::-1])[:k]
+    ideal = np.sort(y_true)[::-1][:k]
+    dcg = np.sum(actual / np.log2(np.arange(2, k + 2)))
+    idcg = np.sum(ideal / np.log2(np.arange(2, k + 2)))
+    return dcg / idcg
+
+
 def evaluate(model, loader, g, features):
-    device = next(model.parameters()).device  # 更健壮的获取模型所在设备的方式
+    device = next(model.parameters()).device
 
     model.eval()
     y_true = []
-    y_pred_probs = []  # 存储预测概率
+    y_scores = []  # 用于NDCG计算的分数
+
     with torch.no_grad():
         for batch in loader:
             pos_edges, neg_edges = batch
             pos_edges, neg_edges = pos_edges.to(device), neg_edges.to(device)
 
-            # 获取图的节点表示
             h = model(g.to(device), features.to(device))
-
-            # 使用predict_links方法计算正负样本的预测得分
             pos_score = model.predict_links(h, pos_edges)
             neg_score = model.predict_links(h, neg_edges)
 
-            # 更新真实标签和预测得分列表
-            y_true.extend([1] * pos_score.size(0))
-            y_true.extend([0] * neg_score.size(0))
-            y_pred_probs.extend(pos_score.squeeze().tolist())
-            y_pred_probs.extend(neg_score.squeeze().tolist())
+            y_true.extend([1] * pos_score.size(0) + [0] * neg_score.size(0))
+            y_scores.extend(pos_score.squeeze().tolist() + neg_score.squeeze().tolist())
 
-    # 假设y_pred_probs已经是概率，无需再次应用sigmoid
-    y_pred = [
-        1 if prob > 0.5 else 0 for prob in y_pred_probs
-    ]  # 根据阈值将概率转换为二值预测结果
+    auc = roc_auc_score(y_true, y_scores)
+    accuracy = accuracy_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
+    ndcg = ndcg_score(y_true, y_scores, k=10)  # 假设评估NDCG@10
 
-    # 计算性能指标
-    auc = roc_auc_score(y_true, y_pred_probs)  # AUC计算应使用预测概率
-    accuracy = accuracy_score(y_true, y_pred)  # 准确率使用二值化后的预测
-
-    print(f"Evaluation - AUC: {auc}, Accuracy: {accuracy}")
-    return auc, accuracy
+    print(f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, NDCG@10: {ndcg:.4f}")
+    return auc, accuracy, ndcg
 
 
 def main():
@@ -369,6 +369,7 @@ def main():
         hidden_feats=config.hidden_feats,
         num_layers=config.num_layers,
         dropout_rate=config.dropout_rate,
+        num_heads=config.num_heads,
     ).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 
@@ -380,11 +381,13 @@ def main():
     else:
         print("No existing model found. Starting training from scratch.")
 
-    training_logs = [["Epoch", "Loss", "Val AUC", "Val Accuracy", "备注（Comments）"]]
+    training_logs = [
+        ["Epoch", "Loss", "Val AUC", "Val Accuracy", "Val NDCG@10", "备注（Comments）"]
+    ]
 
     for epoch in range(config.epoch_count):
         train_loss = train(model, train_loader, optimizer, g, features)
-        val_auc, val_accuracy = evaluate(model, val_loader, g, features)
+        auc, accuracy, ndcg = evaluate(model, val_loader, g, features)
 
         # 动态添加备注
         if epoch < config.epoch_count * 0.25:
@@ -400,8 +403,9 @@ def main():
             [
                 epoch + 1,
                 f"{train_loss:.4f}",
-                f"{val_auc:.4f}",
-                f"{val_accuracy:.4f}",
+                f"{auc:.4f}",
+                f"{accuracy:.4f}",
+                f"{ndcg:.4f}",  # 加入NDCG@10的值
                 comment,
             ]
         )
@@ -421,7 +425,7 @@ def main():
     # input_uuid = input("请输入论文UUID：")
     # if input_uuid in uuid_to_index:
     #     paper_index = uuid_to_index[input_uuid]
-    #     recommended_ids = utils.recommend_papers(model, g, features, paper_index, top_k=10)
+    #     recommended_ids = utils.recommend_papers_cosine_similarity(model, g, features, paper_index, top_k=10)
 
     #     # 将推荐的索引转换回UUID
     #     index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}

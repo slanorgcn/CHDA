@@ -65,6 +65,7 @@ def load_model(model_path, in_feats, hidden_feats, num_layers):
         hidden_feats=hidden_feats,
         num_layers=num_layers,
         dropout_rate=config.dropout_rate,
+        num_heads=config.num_heads,
     ).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()  # 切换到评估模式
