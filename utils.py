@@ -22,7 +22,7 @@ def recommend_papers(model, g, features, paper_id, top_k):
         # log
         # 将映射转换为JSON格式的字符串
         # 转换为Python列表
-        _scores, _indices = torch.topk(scores, k=10000)
+        _scores, _indices = torch.topk(scores, top_k)
         scores_list = _scores.tolist()
         indices_list = _indices.tolist()
         # 创建一个列表，每个元素是(score, index)对

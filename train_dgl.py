@@ -13,7 +13,13 @@ from dgl.data.utils import save_graphs, load_graphs
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.metrics import (
+    roc_auc_score,
+    accuracy_score,
+    recall_score,
+    f1_score,
+    ndcg_score,
+)
 from torch.utils.data import DataLoader, TensorDataset
 from tabulate import tabulate
 from scipy import stats
@@ -309,16 +315,15 @@ def train(model, train_loader, optimizer, g, features):
     return avg_loss
 
 
-def ndcg_score(y_true, y_score, k=10):
-    """计算NDCG@k"""
-    actual = np.take(y_true, np.argsort(y_score)[::-1])[:k]
+def ndcg_score(y_true, y_scores, k=20):
+    actual = np.take(y_true, np.argsort(y_scores)[::-1])[:k]
     ideal = np.sort(y_true)[::-1][:k]
     dcg = np.sum(actual / np.log2(np.arange(2, k + 2)))
     idcg = np.sum(ideal / np.log2(np.arange(2, k + 2)))
-    return dcg / idcg
+    return dcg / idcg if idcg > 0 else 0
 
 
-def evaluate(model, loader, g, features):
+def evaluate(model, loader, g, features, k=20):
     device = next(model.parameters()).device
 
     model.eval()
@@ -334,15 +339,24 @@ def evaluate(model, loader, g, features):
             pos_score = model.predict_links(h, pos_edges)
             neg_score = model.predict_links(h, neg_edges)
 
-            y_true.extend([1] * pos_score.size(0) + [0] * neg_score.size(0))
-            y_scores.extend(pos_score.squeeze().tolist() + neg_score.squeeze().tolist())
+            y_true.extend([1] * len(pos_score) + [0] * len(neg_score))
+            y_scores.extend(
+                pos_score.squeeze().cpu().numpy().tolist()
+                + neg_score.squeeze().cpu().numpy().tolist()
+            )
 
     auc = roc_auc_score(y_true, y_scores)
     accuracy = accuracy_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
-    ndcg = ndcg_score(y_true, y_scores, k=10)  # 假设评估NDCG@10
+    recall = recall_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
+    f1 = f1_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
+    # ndcg = ndcg_score(np.array(y_true), np.array(y_scores), k=k)
 
-    print(f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, NDCG@10: {ndcg:.4f}")
-    return auc, accuracy, ndcg
+    print(
+        # f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}, NDCG@{k}: {ndcg:.4f}"
+        f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}"
+    )
+    # return auc, accuracy, recall, f1, ndcg
+    return auc, accuracy, recall, f1
 
 
 def main():
@@ -382,12 +396,22 @@ def main():
         print("No existing model found. Starting training from scratch.")
 
     training_logs = [
-        ["Epoch", "Loss", "Val AUC", "Val Accuracy", "Val NDCG@10", "备注（Comments）"]
+        [
+            "Epoch",
+            "Loss",
+            "Val AUC",
+            "Val Accuracy",
+            "Val Recall",
+            "Val F1",
+            # "Val NDCG@20",
+            "备注（Comments）",
+        ]
     ]
 
     for epoch in range(config.epoch_count):
         train_loss = train(model, train_loader, optimizer, g, features)
-        auc, accuracy, ndcg = evaluate(model, val_loader, g, features)
+        # auc, accuracy, recall, f1, ndcg = evaluate(model, val_loader, g, features)
+        auc, accuracy, recall, f1 = evaluate(model, val_loader, g, features)
 
         # 动态添加备注
         if epoch < config.epoch_count * 0.25:
@@ -405,7 +429,9 @@ def main():
                 f"{train_loss:.4f}",
                 f"{auc:.4f}",
                 f"{accuracy:.4f}",
-                f"{ndcg:.4f}",  # 加入NDCG@10的值
+                f"{recall:.4f}",
+                f"{f1:.4f}",
+                # f"{ndcg:.4f}",
                 comment,
             ]
         )
@@ -418,16 +444,18 @@ def main():
     # 训练结束后，输出所有训练日志
     print(tabulate(training_logs, headers="firstrow", tablefmt="grid"))
 
-    auc, accuracy, ndcg = evaluate(model, test_loader, g, features)
+    # auc, accuracy, recall, f1, ndcg = evaluate(model, test_loader, g, features, config.top_k)
+    auc, accuracy, recall, f1 = evaluate(model, test_loader, g, features, config.top_k)
     print(
-        f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test NDCG@10: {ndcg:.4f}"
+        # f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@20: {ndcg:.4f}"
+        f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}"
     )
 
     # # 快捷推理：从外部获取UUID形式的paper_id
     # input_uuid = input("请输入论文UUID：")
     # if input_uuid in uuid_to_index:
     #     paper_index = uuid_to_index[input_uuid]
-    #     recommended_ids = utils.recommend_papers_cosine_similarity(model, g, features, paper_index, top_k=10)
+    #     recommended_ids = utils.recommend_papers_cosine_similarity(model, g, features, paper_index, config.top_k)
 
     #     # 将推荐的索引转换回UUID
     #     index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}
