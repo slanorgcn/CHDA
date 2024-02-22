@@ -5,12 +5,14 @@ import torch
 from dgl.nn import GraphConv
 
 class GNNModel(nn.Module):
-    def __init__(self, in_feats, hidden_feats, num_layers):
+    def __init__(self, in_feats, hidden_feats, num_layers, dropout_rate):
         super(GNNModel, self).__init__()
         
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         
         self.layers = nn.ModuleList()
+        self.dropout = nn.Dropout(dropout_rate)  # 初始化dropout层
+        
         # 第一个图卷积层
         self.layers.append(GraphConv(in_feats, hidden_feats).to(self.device))
         # 添加更多的图卷积层
@@ -29,11 +31,12 @@ class GNNModel(nn.Module):
         for conv in self.layers:
             h = conv(g, h)
             h = F.relu(h)
+            h = self.dropout(h)  # 应用dropout
         return h
 
     def predict_links(self, h, edges):
         # 用于链接预测的辅助函数，edges为节点对的索引
         edges = edges.to(self.device)
-        edge_h = torch.cat((h[edges[0]], h[edges[1]]), dim=1)
+        edge_h = torch.cat((h[edges[:,0]], h[edges[:,1]]), dim=1)
         return torch.sigmoid(self.predict(edge_h))
     

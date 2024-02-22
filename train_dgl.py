@@ -20,7 +20,6 @@ from model import GNNModel
 import config
 import utils
 
-
     
 def load_data(filename):
     
@@ -91,6 +90,7 @@ def load_data(filename):
     
     # 拼接所有特征
     features = np.concatenate([years, title_embeddings, abstract_embeddings, journal_embeddings, author_features], axis=1)
+    # features = np.concatenate([years], axis=1)
     features = torch.FloatTensor(features) 
     
     # 实例化归一化工具
@@ -301,7 +301,7 @@ def main():
     # print('features.shape[0]')  # 特征张量中的样本数（节点数）
     # print(features.shape[0])  # 特征张量中的样本数（节点数）
 
-    model = GNNModel(in_feats=features.shape[1], hidden_feats=config.hidden_feats, num_layers=config.num_layers).to(device)
+    model = GNNModel(in_feats=features.shape[1], hidden_feats=config.hidden_feats, num_layers=config.num_layers, dropout_rate=config.dropout_rate).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
     
     # 尝试加载已有模型
@@ -328,19 +328,19 @@ def main():
     test_auc, test_accuracy = evaluate(model, test_loader, g, features)
     print(f'Test AUC: {test_auc:.4f}, Test Accuracy: {test_accuracy:.4f}')
     
-    # 从外部获取UUID形式的paper_id
-    input_uuid = input("请输入论文UUID：")
-    if input_uuid in uuid_to_index:
-        paper_index = uuid_to_index[input_uuid]
-        recommended_ids = utils.recommend_papers(model, g, features, paper_index, top_k=10)
+    # # 快捷推理：从外部获取UUID形式的paper_id
+    # input_uuid = input("请输入论文UUID：")
+    # if input_uuid in uuid_to_index:
+    #     paper_index = uuid_to_index[input_uuid]
+    #     recommended_ids = utils.recommend_papers(model, g, features, paper_index, top_k=10)
         
-        # 将推荐的索引转换回UUID
-        index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}
-        recommended_uuids = [index_to_uuid[idx] for idx in recommended_ids]
+    #     # 将推荐的索引转换回UUID
+    #     index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}
+    #     recommended_uuids = [index_to_uuid[idx] for idx in recommended_ids]
         
-        print("为论文UUID {} 推荐的相关论文UUID列表:".format(input_uuid), recommended_uuids)
-    else:
-        print("输入的UUID未找到对应的论文。")
+    #     print("为论文UUID {} 推荐的相关论文UUID列表:".format(input_uuid), recommended_uuids)
+    # else:
+    #     print("输入的UUID未找到对应的论文。")
 
 
 if __name__ == '__main__':

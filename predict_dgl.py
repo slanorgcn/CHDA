@@ -5,16 +5,11 @@ import os
 
 from tabulate import tabulate
 
-from model import GNNModel
 import config
 import utils
 
 def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # print(torch.cuda.is_available())
-    # print(torch.version.cuda)
-    # print(torch.cuda.get_device_name(0))
-    # print(torch.__version__)
     print(f"Using device: {device}")
     
     # 加载图数据和特征（这里需要你根据实际情况填充或修改）
