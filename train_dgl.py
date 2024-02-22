@@ -15,6 +15,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score, accuracy_score
 from torch.utils.data import DataLoader, TensorDataset
+from tabulate import tabulate
 
 from model import GNNModel
 import config
@@ -345,7 +346,6 @@ def evaluate(model, loader, g, features):
 
 
 def main():
-
     # 确定执行的设备
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -364,11 +364,6 @@ def main():
     val_loader = prepare_dataloader(pos_val, neg_val, config.batch_size)
     test_loader = prepare_dataloader(pos_test, neg_test, config.batch_size)
 
-    # print('g.number_of_nodes()')  # 图中节点数量
-    # print(g.number_of_nodes())  # 图中节点数量
-    # print('features.shape[0]')  # 特征张量中的样本数（节点数）
-    # print(features.shape[0])  # 特征张量中的样本数（节点数）
-
     model = GNNModel(
         in_feats=features.shape[1],
         hidden_feats=config.hidden_feats,
@@ -385,19 +380,39 @@ def main():
     else:
         print("No existing model found. Starting training from scratch.")
 
-    for epoch in range(config.epoch_count):
+    training_logs = [["Epoch", "Loss", "Val AUC", "Val Accuracy", "备注（Comments）"]]
 
+    for epoch in range(config.epoch_count):
         train_loss = train(model, train_loader, optimizer, g, features)
         val_auc, val_accuracy = evaluate(model, val_loader, g, features)
-        print(
-            f"Epoch {epoch+1}, Loss: {train_loss:.4f}, Val AUC: {val_auc:.4f}, Val Accuracy: {val_accuracy:.4f}"
+
+        # 动态添加备注
+        if epoch < config.epoch_count * 0.25:
+            comment = "初次训练（Initial Training）"
+        elif epoch < config.epoch_count * 0.5:
+            comment = "性能提升（Performance Improvement）"
+        elif epoch < config.epoch_count * 0.75:
+            comment = "接近收敛（Approaching Convergence）"
+        else:
+            comment = "训练结束（End of Training）"
+
+        training_logs.append(
+            [
+                epoch + 1,
+                f"{train_loss:.4f}",
+                f"{val_auc:.4f}",
+                f"{val_accuracy:.4f}",
+                comment,
+            ]
         )
 
-        # 训练结束后保存模型:% N
         # 每N轮保存一次模型
         if (epoch + 1) % config.save_per_epoch == 0:
             torch.save(model.state_dict(), model_checkpoint_path)
             print(f"Model saved at epoch {epoch+1}")
+
+    # 训练结束后，输出所有训练日志
+    print(tabulate(training_logs, headers="firstrow", tablefmt="grid"))
 
     test_auc, test_accuracy = evaluate(model, test_loader, g, features)
     print(f"Test AUC: {test_auc:.4f}, Test Accuracy: {test_accuracy:.4f}")

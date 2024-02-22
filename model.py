@@ -8,7 +8,8 @@ class GNNModel(nn.Module):
     def __init__(self, in_feats, hidden_feats, num_layers, dropout_rate):
         super(GNNModel, self).__init__()
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu")
 
         self.layers = nn.ModuleList()
         self.dropout = nn.Dropout(dropout_rate)  # 初始化dropout层
@@ -17,9 +18,11 @@ class GNNModel(nn.Module):
         self.layers.append(GraphConv(in_feats, hidden_feats).to(self.device))
         # 添加更多的图卷积层
         for i in range(num_layers - 2):
-            self.layers.append(GraphConv(hidden_feats, hidden_feats).to(self.device))
+            self.layers.append(
+                GraphConv(hidden_feats, hidden_feats).to(self.device))
         # 最后一个图卷积层，假设输出层的特征维度与隐藏层相同
-        self.layers.append(GraphConv(hidden_feats, hidden_feats).to(self.device))
+        self.layers.append(
+            GraphConv(hidden_feats, hidden_feats).to(self.device))
 
         # 添加一个输出层，用于链接预测
         self.predict = nn.Linear(hidden_feats * 2, 1).to(self.device)

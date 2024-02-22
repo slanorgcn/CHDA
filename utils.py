@@ -1,9 +1,13 @@
 import torch
 import json
+
 from model import GNNModel
+import torch.nn.functional as F
+
 import config
 
 
+# 点积计算容易推荐为固定内容，不推荐
 def recommend_papers(model, g, features, paper_id, top_k):
     model.eval()
     with torch.no_grad():
@@ -36,9 +40,25 @@ def recommend_papers(model, g, features, paper_id, top_k):
     return recommended_ids
 
 
+# 推荐余弦相似度
+def recommend_papers_cosine_similarity(model, g, features, paper_id, top_k):
+    model.eval()
+    with torch.no_grad():
+        paper_embeddings = model(g, features)
+        query_embedding = paper_embeddings[paper_id].unsqueeze(
+            0
+        )  # 增加一个维度以便广播
+        scores = F.cosine_similarity(paper_embeddings, query_embedding, dim=1)
+        top_k_adjusted = min(top_k, g.number_of_nodes() - 1)  # 确保不超出范围
+        _, indices = torch.topk(scores, k=top_k_adjusted + 1)  # +1可能包括论文自身
+    recommended_ids = [idx.item() for idx in indices if idx.item() != paper_id][
+        :top_k_adjusted
+    ]
+    return recommended_ids
+
+
 def load_model(model_path, in_feats, hidden_feats, num_layers):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
     """加载训练好的模型"""
     model = GNNModel(
         in_feats=in_feats,

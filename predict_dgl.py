@@ -30,7 +30,8 @@ def main():
     # 定义UUID到索引的映射
     with open("./data/paper.json", "r", encoding="utf-8") as file:
         data = json.load(file)
-        uuid_to_index = {paper["id"]: idx for idx, paper in enumerate(data["papers"])}
+        uuid_to_index = {paper["id"]: idx for idx,
+                         paper in enumerate(data["papers"])}
 
     while True:
         # 从用户输入获取UUID
@@ -41,7 +42,7 @@ def main():
             # 查找输入UUID对应的论文索引
             if input_uuid in uuid_to_index:
                 paper_index = uuid_to_index[input_uuid]
-                recommended_ids = utils.recommend_papers(
+                recommended_ids = utils.recommend_papers_cosine_similarity(
                     model, g, features, paper_index, top_k=10
                 )
 
@@ -63,7 +64,8 @@ def main():
                 headers = ["UUID", "标题", "作者", "出版社", "年份"]
                 print(f"\n为论文UUID {input_uuid} 推荐的相关论文列表:")
                 print(
-                    tabulate(recommended_papers_info, headers=headers, tablefmt="grid")
+                    tabulate(recommended_papers_info,
+                             headers=headers, tablefmt="grid")
                 )
             else:
                 print("输入的UUID未找到对应的论文。")
