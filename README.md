@@ -12,7 +12,7 @@
 pip install dgl torch gensim fasttext
 ```
 
-> 如果是 N 卡，可考虑安装 GPU 版本，具体请参考文档：[DGL 开始指南](https://www.dgl.ai/pages/start.html)
+> 如果是 N 卡，可考虑安装 GPU 版本（未测试），具体请参考文档：[DGL 开始指南](https://www.dgl.ai/pages/start.html)
 
 ## 数据集
 
@@ -104,6 +104,7 @@ python train_dgl.py
 
 ## 小应用
 
+### CLI
 ```sh
 python predict_dgl.py
 ```
@@ -116,4 +117,4 @@ python predict_dgl.py
 - [x] 文本特征预处理：使用自然语言处理技术将文本特征（如标题、摘要）转换为数值型特征向量。
 - [x] 特征工程：对类别型特征（如单个或多个的作者名）使用独热编码，并设计基于引用数量的特征等。
 - [x] 模型设计：设计图神经网络模型，整合节点特征和图结构信息。
-- [x] 开发配套的示例应用。
+- [ ] 开发配套的示例应用。
