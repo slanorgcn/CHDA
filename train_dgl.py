@@ -418,8 +418,10 @@ def main():
     # 训练结束后，输出所有训练日志
     print(tabulate(training_logs, headers="firstrow", tablefmt="grid"))
 
-    test_auc, test_accuracy = evaluate(model, test_loader, g, features)
-    print(f"Test AUC: {test_auc:.4f}, Test Accuracy: {test_accuracy:.4f}")
+    auc, accuracy, ndcg = evaluate(model, test_loader, g, features)
+    print(
+        f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test NDCG@10: {ndcg:.4f}"
+    )
 
     # # 快捷推理：从外部获取UUID形式的paper_id
     # input_uuid = input("请输入论文UUID：")
