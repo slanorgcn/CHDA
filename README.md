@@ -124,12 +124,12 @@ python train_dgl.py
 BATCH_SIZE=4096
 LR=0.001
 HIDDEN_FEATS=512
-EPOCH_COUNT=20
+EPOCH_COUNT=10
 SAVE_PER_EPOCH=1
 NUM_LAYERS=3
 DROP_OUT=0.5
 NUM_HEADS=4
-TOP_K=20
+TOP_K=10
 ```
 
 ![测试评分](https://oss.v-dk.com/img/202402221556319.png)
@@ -141,7 +141,9 @@ TOP_K=20
 python predict_dgl.py
 ```
 
-训练好模型后，可通过本文件进行命令行下的预测。
+训练好模型后，可通过本文件进行命令行下的预测。程序会自动加载模型 `model_checkpoint.pth`，与现有的图文件 `graph_data.bin`、特征文件 `features_file.pt` 以及 `UUID` 对照文件（从 `./data/paper.json` 动态获取）。
+
+如果您有新的数据，可直接使用新文件进行新数据的推测（前提是新数据的特征与训练数据相兼容）。
 
 ## 发展路线图
 

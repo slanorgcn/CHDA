@@ -403,7 +403,7 @@ def main():
             "Val Accuracy",
             "Val Recall",
             "Val F1",
-            # "Val NDCG@20",
+            # "Val NDCG@10",
             "备注（Comments）",
         ]
     ]
@@ -447,7 +447,7 @@ def main():
     # auc, accuracy, recall, f1, ndcg = evaluate(model, test_loader, g, features, config.top_k)
     auc, accuracy, recall, f1 = evaluate(model, test_loader, g, features, config.top_k)
     print(
-        # f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@20: {ndcg:.4f}"
+        # f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@10: {ndcg:.4f}"
         f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}"
     )
 
