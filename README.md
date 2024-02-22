@@ -84,11 +84,11 @@ MATCH (target:Paper {uuid: refUuid})
 MERGE (refSet)-[:REFERENCES]->(target);
 ```
 
-**二部图截图（模拟超边）**
+**图谱可视化（模拟超边）**
 
-![alt text](https://oss.v-dk.com/img/202402211851917.jpg)
+![图谱可视化1](https://oss.v-dk.com/img/202402211851917.jpg)
 
-![alt text](https://oss.v-dk.com/img/202402211851640.jpg)
+![图谱可视化2](https://oss.v-dk.com/img/202402211851640.jpg)
 
 ## 训练与验证
 
@@ -101,6 +101,38 @@ python train_dgl.py
 每轮训练后支持输入 `UUID` 进行手工验证，也可以单独运行小应用进行实际测试。
 
 首次运行需要远程下载`fasttext`中的 `cc.zh.300.bin` 向量模型，请耐心等待。
+
+## 测试
+
+**模型测试**
+
+如测试 `UUID` 为 `8d899b63-8d5a-4b92-92e9-6b8d90ff1ebd` 的论文名为：`日本全面侵华前夕对华态度新探`
+
+键入 `UUID` 后推荐前 `20` 个相关内容，其中包含了引用的内容，也给推出了其他不在引用关系范围但特征相似的其他论文（如第二条的`西安事变与日本的对华政策`，已知西安事变是在日本侵华前夕的1936年12月发生的一起重大政治事件。即印证模型中给的推断结果与原论文正相关）。
+
+![测试 UUID 用例](https://oss.v-dk.com/img/202402221516668.jpg)
+
+![探索相关靠前结果](https://oss.v-dk.com/img/202402221517633.jpg)
+
+![为论文自身引用关系](https://oss.v-dk.com/img/202402221517437.jpg)
+
+**测试评分**
+
+`10` 轮下的训练打分，超参如下：
+
+```ini
+BATCH_SIZE=4096
+LR=0.001
+HIDDEN_FEATS=512
+EPOCH_COUNT=20
+SAVE_PER_EPOCH=1
+NUM_LAYERS=3
+DROP_OUT=0.5
+NUM_HEADS=4
+TOP_K=20
+```
+
+![测试评分](https://oss.v-dk.com/img/202402221556319.png)
 
 ## 小应用
 
