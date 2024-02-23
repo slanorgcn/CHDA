@@ -479,25 +479,6 @@ def main():
         f"💡 Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@{str(config.top_k)}: {ndcg:.4f}"
     )
 
-    # 快捷推理：从外部获取UUID形式的paper_id
-    input_uuid = input("请输入论文UUID：")
-    if input_uuid in uuid_to_index:
-        paper_index = uuid_to_index[input_uuid]
-        recommended_ids = utils.recommend_papers_cosine_similarity(
-            model, g, features, paper_index, config.top_k
-        )
-
-        # 将推荐的索引转换回UUID
-        index_to_uuid = {idx: paper["id"] for idx, paper in enumerate(papers)}
-        recommended_uuids = [index_to_uuid[idx] for idx in recommended_ids]
-
-        print(
-            "为论文UUID {} 推荐的相关论文UUID列表:".format(input_uuid),
-            recommended_uuids,
-        )
-    else:
-        print("输入的UUID未找到对应的论文。")
-
 
 if __name__ == "__main__":
     main()
