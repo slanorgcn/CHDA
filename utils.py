@@ -28,7 +28,7 @@ def recommend_papers(model, g, features, paper_id, top_k):
         # 创建一个列表，每个元素是(score, index)对
         recommendations = list(zip(scores_list, indices_list))
         # 将JSON字符串保存到文件，以备参考对照
-        with open("topk.json", "w") as json_file:
+        with open("./data/topk.json", "w") as json_file:
             json.dump(recommendations, json_file, indent=4)
 
         top_k_adjusted = min(top_k, g.number_of_nodes() - 1)  # 确保不超出范围

@@ -14,14 +14,16 @@ def main():
     print(f"Using device: {device}")
 
     # 加载图数据和特征（这里需要你根据实际情况填充或修改）
-    g = dgl.load_graphs("graph_data.bin")[0][0]  # 假设图数据已保存为DGL的二进制格式
-    features = torch.load("features_file.pt")  # 假设节点特征已保存为PyTorch张量
+    g = dgl.load_graphs("./data/graph_data.bin")[0][
+        0
+    ]  # 假设图数据已保存为DGL的二进制格式
+    features = torch.load("./data/features_file.pt")  # 假设节点特征已保存为PyTorch张量
 
     g = g.to(device)
     features = features.to(device)
 
     # 加载模型（调整路径、输入特征维度和隐藏层特征维度）
-    model_path = "model_checkpoint.pth"
+    model_path = "./model/model_checkpoint.pth"
     in_feats = features.shape[1]
     model = utils.load_model(
         model_path, in_feats, config.hidden_feats, config.num_layers

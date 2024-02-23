@@ -27,15 +27,17 @@ from scipy import stats
 from model import GNNModel
 import config
 import utils
+import shutil
+import time
 
 
 def load_data(filename):
 
-    # 如果特征与图数据有更新，请删除以下文件，确保删除旧的graph_data.bin、your_features.pt和uuid_to_index.pt文件。
+    # 如果特征与图数据有更新，请删除以下文件，确保删除旧的graph_data.bin、features_file.pt和uuid_to_index.pt文件。
     # 这样，下次运行load_data函数时，会根据更新后的数据重新生成和保存这些文件。
-    graph_data_file = "graph_data.bin"
-    features_file = "features_file.pt"
-    uuid_to_index_file = "uuid_to_index.pt"
+    graph_data_file = "./data/graph_data.bin"
+    features_file = "./data/features_file.pt"
+    uuid_to_index_file = "./data/uuid_to_index.pt"
 
     # 每次都载入内存
     with open(filename, "r", encoding="utf-8") as file:
@@ -171,7 +173,7 @@ def load_data(filename):
     uuid_to_index_json = json.dumps(uuid_to_index, indent=4)
 
     # 将JSON字符串保存到文件，以备参考对照
-    with open("uuid_to_index.json", "w") as json_file:
+    with open("./data/uuid_to_index.json", "w") as json_file:
         json_file.write(uuid_to_index_json)
 
     # print('title_embeddings')
@@ -388,10 +390,16 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
 
     # 尝试加载已有模型
-    model_checkpoint_path = "model_checkpoint.pth"
+    model_checkpoint_path = "./model/model_checkpoint.pth"
     if os.path.exists(model_checkpoint_path):
         model.load_state_dict(torch.load(model_checkpoint_path, map_location=device))
         print("Model loaded and will continue training.")
+
+        # Create a backup of the existing model checkpoint
+        timestamp = time.strftime("%Y%m%d%H%M%S", time.localtime())
+        backup_path = f"./model/backup/model_checkpoint-{timestamp}.pth"
+        shutil.copyfile(model_checkpoint_path, backup_path)
+        print(f"Model checkpoint backed up as {backup_path}")
     else:
         print("No existing model found. Starting training from scratch.")
 

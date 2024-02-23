@@ -22,7 +22,7 @@ pip install dgl torch gensim fasttext
 
 每篇文献都分配有一个唯一标识符（`UUID`），以便识别。为了适应链接预测的下游任务，我们在数据集中直接使用了所有可能的正样本，并计算出相同数量的不存在的链接作为负样本，供模型训练和验证使用。
 
-> 如果您有自己的传统图数据库，可参考 `./data/papers.json` 结构导出一份自己的数据集。
+> 推荐实践：如果您有自己的传统图数据库，可参考 `./data/papers.json` 结构导出一份自己的数据集。
 >
 > 如果您有自己的超图数据库，可参考[数据建模](#数据建模)中的内容，进行降维后使用，效果相同。（即借助传统图中的节点模拟超边，最后转为对应格式的 `./data/papers.json` 中，每条超边都用一个独立“超边节点”表示，之后分别在 `papers` 与 `edges` 中妥善表达即可。）
 
@@ -92,7 +92,7 @@ MERGE (refSet)-[:REFERENCES]->(target);
 
 ## 训练与验证
 
-运行训练脚本（重命名`.env.sample`为`.env`并按需调整），数据集有更新，请及时删除旧的`graph_data.bin`、`your_features.pt`和`uuid_to_index.pt`文件：
+运行训练脚本（重命名`.env.sample`为`.env`并按需调整），数据集有更新，请及时删除旧的`./data/graph_data.bin`、`./data/features_file.pt`和`./data/uuid_to_index.pt`文件：
 
 ```sh
 python train_dgl.py
@@ -100,7 +100,7 @@ python train_dgl.py
 
 每轮训练后支持输入 `UUID` 进行手工验证，也可以单独运行小应用进行实际测试。
 
-首次运行需要远程下载`fasttext`中的 `cc.zh.300.bin` 向量模型，请耐心等待。
+首次运行需要远程下载`fasttext`中的 `cc.zh.300.bin` 向量模型到项目根目录，请耐心等待。
 
 ## 测试
 
@@ -127,7 +127,7 @@ python train_dgl.py
 python predict_dgl.py
 ```
 
-训练好模型后，可通过本文件进行命令行下的预测。程序会自动加载模型 `model_checkpoint.pth`，与现有的图文件 `graph_data.bin`、特征文件 `features_file.pt` 以及 `UUID` 对照文件（从 `./data/paper.json` 动态获取）。
+训练好模型后，可通过本文件进行命令行下的预测。程序会自动加载模型 `./model/model_checkpoint.pth`，与现有的图文件 `./data/graph_data.bin`、特征文件 `./data/features_file.pt` 以及 `UUID` 对照文件（从 `./data/paper.json` 动态获取）。
 
 如果您有新的数据，可直接使用新文件进行新数据的推测（前提是新数据的特征与训练数据相兼容）。
 
