@@ -116,21 +116,6 @@ python train_dgl.py
 
 ![为论文自身引用关系](https://oss.v-dk.com/img/202402221517437.jpg)
 
-**默认超参**
-
-```ini
-BATCH_SIZE=16384
-LR=0.001
-HIDDEN_FEATS=512
-EPOCH_COUNT=100
-PATIENCE=10
-SAVE_PER_EPOCH=1
-NUM_LAYERS=10
-DROP_OUT=0.5
-NUM_HEADS=5
-TOP_K=10
-```
-
 **测试评分**
 
 ![测试评分](https://oss.v-dk.com/img/202402221556319.png)

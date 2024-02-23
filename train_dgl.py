@@ -19,8 +19,10 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     ndcg_score,
+    precision_score,
 )
 from torch.utils.data import DataLoader, TensorDataset
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tabulate import tabulate
 from scipy import stats
 
@@ -313,7 +315,7 @@ def train(model, train_loader, optimizer, g, features):
         total_loss += loss.item()
 
     avg_loss = total_loss / len(train_loader)
-    print(f"Average Loss: {avg_loss}")
+    print(f"🔽 Average Loss: {avg_loss}")
     return avg_loss
 
 
@@ -350,13 +352,16 @@ def evaluate(model, loader, g, features, k):
     auc = roc_auc_score(y_true, y_scores)
     accuracy = accuracy_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
     recall = recall_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
+    precision = precision_score(
+        y_true, [1 if score > 0.5 else 0 for score in y_scores]
+    )  # 计算精确率
     f1 = f1_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
     ndcg = ndcg_score(np.array(y_true), np.array(y_scores), k=k)
 
     print(
-        f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}, NDCG@{k}: {ndcg:.4f}"
+        f"📈 Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}, NDCG@{k}: {ndcg:.4f}"
     )
-    return auc, accuracy, recall, f1, ndcg
+    return auc, accuracy, precision, recall, f1, ndcg
 
 
 def main():
@@ -414,19 +419,33 @@ def main():
             "Val Recall",
             "Val F1",
             "Val NDCG@" + str(config.top_k),
-            "备注（Comments）",
+            # "备注（Comments）",
         ]
     ]
 
+    # 创建 ReduceLROnPlateau 调度器
+    scheduler = ReduceLROnPlateau(
+        optimizer,
+        mode="max",
+        factor=config.lr_reduce_percent,
+        patience=config.lr_reduce_patience,
+        verbose=True,
+    )
+
     for epoch in range(config.epoch_count):
+
         train_loss = train(model, train_loader, optimizer, g, features)
-        auc, accuracy, recall, f1, ndcg = evaluate(
+
+        auc, accuracy, precision, recall, f1, ndcg = evaluate(
             model, val_loader, g, features, config.top_k
         )
 
         print(
             f"🤖 Epoch {epoch+1}, Current AUC: {auc:.4f}, Best AUC: {best_val_auc:.4f}, Patience Counter: {patience_counter}"
         )
+
+        # 更新调度器
+        scheduler.step(auc)
 
         if auc > best_val_auc:
             best_val_auc = auc
@@ -461,7 +480,7 @@ def main():
                 f"{recall:.4f}",
                 f"{f1:.4f}",
                 f"{ndcg:.4f}",
-                comment,
+                # comment,
             ]
         )
 
@@ -472,11 +491,11 @@ def main():
     model.load_state_dict(torch.load(model_checkpoint_path))
     print("Loaded best model for testing.")
 
-    auc, accuracy, recall, f1, ndcg = evaluate(
+    auc, accuracy, precision, recall, f1, ndcg = evaluate(
         model, test_loader, g, features, config.top_k
     )
     print(
-        f"💡 Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@{str(config.top_k)}: {ndcg:.4f}"
+        f"💡 Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Precision: {precision:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@{str(config.top_k)}: {ndcg:.4f}"
     )
 
 

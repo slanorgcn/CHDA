@@ -5,6 +5,8 @@ from dotenv import load_dotenv, set_key
 load_dotenv()
 batch_size = int(os.getenv("BATCH_SIZE"))
 lr = float(os.getenv("LR"))
+lr_reduce_patience = int(os.getenv("LR_REDUCE_PATIENCE"))
+lr_reduce_percent = float(os.getenv("LR_REDUCE_PERCENT"))
 hidden_feats = int(os.getenv("HIDDEN_FEATS"))
 epoch_count = int(os.getenv("EPOCH_COUNT"))
 patience = int(os.getenv("PATIENCE"))
