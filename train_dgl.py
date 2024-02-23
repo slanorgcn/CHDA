@@ -325,7 +325,7 @@ def ndcg_score(y_true, y_scores, k=20):
     return dcg / idcg if idcg > 0 else 0
 
 
-def evaluate(model, loader, g, features, k=20):
+def evaluate(model, loader, g, features, k):
     device = next(model.parameters()).device
 
     model.eval()
@@ -351,14 +351,12 @@ def evaluate(model, loader, g, features, k=20):
     accuracy = accuracy_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
     recall = recall_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
     f1 = f1_score(y_true, [1 if score > 0.5 else 0 for score in y_scores])
-    # ndcg = ndcg_score(np.array(y_true), np.array(y_scores), k=k)
+    ndcg = ndcg_score(np.array(y_true), np.array(y_scores), k=k)
 
     print(
-        # f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}, NDCG@{k}: {ndcg:.4f}"
-        f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}"
+        f"Evaluation - AUC: {auc:.4f}, Accuracy: {accuracy:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}, NDCG@{k}: {ndcg:.4f}"
     )
-    # return auc, accuracy, recall, f1, ndcg
-    return auc, accuracy, recall, f1
+    return auc, accuracy, recall, f1, ndcg
 
 
 def main():
@@ -403,6 +401,10 @@ def main():
     else:
         print("No existing model found. Starting training from scratch.")
 
+    best_val_auc = 0.0  # 假设以AUC为基准进行早停
+    patience_counter = 0
+    patience = config.patience  # 设置耐心值，例如10个epoch
+
     training_logs = [
         [
             "Epoch",
@@ -411,15 +413,28 @@ def main():
             "Val Accuracy",
             "Val Recall",
             "Val F1",
-            # "Val NDCG@10",
+            "Val NDCG@" + str(config.top_k),
             "备注（Comments）",
         ]
     ]
 
     for epoch in range(config.epoch_count):
         train_loss = train(model, train_loader, optimizer, g, features)
-        # auc, accuracy, recall, f1, ndcg = evaluate(model, val_loader, g, features)
-        auc, accuracy, recall, f1 = evaluate(model, val_loader, g, features)
+        auc, accuracy, recall, f1, ndcg = evaluate(
+            model, val_loader, g, features, config.top_k
+        )
+
+        if auc > best_val_auc:
+            best_val_auc = auc
+            patience_counter = 0  # 重置耐心计数器
+            torch.save(model.state_dict(), model_checkpoint_path)  # 保存最好的模型
+            print(f"Model saved at epoch {epoch+1} with improvement in AUC: {auc:.4f}")
+        else:
+            patience_counter += 1
+
+        if patience_counter >= patience:
+            print(f"Early stopping triggered at epoch {epoch+1}")
+            break  # 提前终止训练
 
         # 动态添加备注
         if epoch < config.epoch_count * 0.25:
@@ -439,39 +454,43 @@ def main():
                 f"{accuracy:.4f}",
                 f"{recall:.4f}",
                 f"{f1:.4f}",
-                # f"{ndcg:.4f}",
+                f"{ndcg:.4f}",
                 comment,
             ]
         )
 
-        # 每N轮保存一次模型
-        if (epoch + 1) % config.save_per_epoch == 0:
-            torch.save(model.state_dict(), model_checkpoint_path)
-            print(f"Model saved at epoch {epoch+1}")
-
     # 训练结束后，输出所有训练日志
     print(tabulate(training_logs, headers="firstrow", tablefmt="grid"))
 
-    # auc, accuracy, recall, f1, ndcg = evaluate(model, test_loader, g, features, config.top_k)
-    auc, accuracy, recall, f1 = evaluate(model, test_loader, g, features, config.top_k)
+    # 加载最佳模型进行测试
+    model.load_state_dict(torch.load(model_checkpoint_path))
+    print("Loaded best model for testing.")
+
+    auc, accuracy, recall, f1, ndcg = evaluate(
+        model, test_loader, g, features, config.top_k
+    )
     print(
-        # f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@10: {ndcg:.4f}"
-        f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}"
+        f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@{str(config.top_k)}: {ndcg:.4f}"
     )
 
-    # # 快捷推理：从外部获取UUID形式的paper_id
-    # input_uuid = input("请输入论文UUID：")
-    # if input_uuid in uuid_to_index:
-    #     paper_index = uuid_to_index[input_uuid]
-    #     recommended_ids = utils.recommend_papers_cosine_similarity(model, g, features, paper_index, config.top_k)
+    # 快捷推理：从外部获取UUID形式的paper_id
+    input_uuid = input("请输入论文UUID：")
+    if input_uuid in uuid_to_index:
+        paper_index = uuid_to_index[input_uuid]
+        recommended_ids = utils.recommend_papers_cosine_similarity(
+            model, g, features, paper_index, config.top_k
+        )
 
-    #     # 将推荐的索引转换回UUID
-    #     index_to_uuid = {idx: paper['id'] for idx, paper in enumerate(papers)}
-    #     recommended_uuids = [index_to_uuid[idx] for idx in recommended_ids]
+        # 将推荐的索引转换回UUID
+        index_to_uuid = {idx: paper["id"] for idx, paper in enumerate(papers)}
+        recommended_uuids = [index_to_uuid[idx] for idx in recommended_ids]
 
-    #     print("为论文UUID {} 推荐的相关论文UUID列表:".format(input_uuid), recommended_uuids)
-    # else:
-    #     print("输入的UUID未找到对应的论文。")
+        print(
+            "为论文UUID {} 推荐的相关论文UUID列表:".format(input_uuid),
+            recommended_uuids,
+        )
+    else:
+        print("输入的UUID未找到对应的论文。")
 
 
 if __name__ == "__main__":
