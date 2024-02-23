@@ -424,6 +424,10 @@ def main():
             model, val_loader, g, features, config.top_k
         )
 
+        print(
+            f"🤖 Epoch {epoch+1}, Current AUC: {auc:.4f}, Best AUC: {best_val_auc:.4f}, Patience Counter: {patience_counter}"
+        )
+
         if auc > best_val_auc:
             best_val_auc = auc
             patience_counter = 0  # 重置耐心计数器
