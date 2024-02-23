@@ -432,12 +432,14 @@ def main():
             best_val_auc = auc
             patience_counter = 0  # 重置耐心计数器
             torch.save(model.state_dict(), model_checkpoint_path)  # 保存最好的模型
-            print(f"Model saved at epoch {epoch+1} with improvement in AUC: {auc:.4f}")
+            print(
+                f"🎉 Model saved at epoch {epoch+1} with improvement in AUC: {auc:.4f}"
+            )
         else:
             patience_counter += 1
 
         if patience_counter >= patience:
-            print(f"Early stopping triggered at epoch {epoch+1}")
+            print(f"❌ Early stopping triggered at epoch {epoch+1}")
             break  # 提前终止训练
 
         # 动态添加备注
@@ -474,7 +476,7 @@ def main():
         model, test_loader, g, features, config.top_k
     )
     print(
-        f"Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@{str(config.top_k)}: {ndcg:.4f}"
+        f"💡 Test AUC: {auc:.4f}, Test Accuracy: {accuracy:.4f}, Test Recall: {recall:.4f}, Test F1: {f1:.4f}, Test NDCG@{str(config.top_k)}: {ndcg:.4f}"
     )
 
     # 快捷推理：从外部获取UUID形式的paper_id
